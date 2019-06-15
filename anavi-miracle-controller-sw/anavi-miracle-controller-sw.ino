@@ -72,8 +72,10 @@ CRGB leds2[NUM_LEDS];
 uint8_t gHue1 = 0;
 uint8_t gHue2 = 0;
 
-bool power = true;
-char effect[32] = "rainbow";
+bool powerLed1 = true;
+bool powerLed2 = true;
+char effectLed1[32] = "rainbow";
+char effectLed2[32] = "rainbow";
 
 U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
 
@@ -139,8 +141,10 @@ char line3_topic[11 + sizeof(machineId)];
 char cmnd_temp_coefficient_topic[14 + sizeof(machineId)];
 char cmnd_ds_temp_coefficient_topic[20 + sizeof(machineId)];
 
-char cmnd_power_topic[44];
-char cmnd_color_topic[44];
+char cmnd_led1_power_topic[49];
+char cmnd_led2_power_topic[49];
+char cmnd_led1_color_topic[49];
+char cmnd_led2_color_topic[49];
 
 char stat_power_topic[44];
 char stat_color_topic[44];
@@ -230,8 +234,10 @@ void setup()
     calculateMachineId();
 
     // Set MQTT topics
-    sprintf(cmnd_power_topic, "cmnd/%s/power", machineId);
-    sprintf(cmnd_color_topic, "cmnd/%s/color", machineId);
+    sprintf(cmnd_led1_power_topic, "cmnd/%s/led1/power", machineId);
+    sprintf(cmnd_led1_color_topic, "cmnd/%s/led1/color", machineId);
+    sprintf(cmnd_led2_power_topic, "cmnd/%s/led2/power", machineId);
+    sprintf(cmnd_led2_color_topic, "cmnd/%s/led2/color", machineId);
     sprintf(stat_power_topic, "stat/%s/power", machineId);
     sprintf(stat_color_topic, "stat/%s/color", machineId);
 
@@ -655,11 +661,11 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
     Serial.print("] ");
     Serial.println(text);
 
-    if (strcmp(topic, cmnd_power_topic) == 0)
+    if (strcmp(topic, cmnd_led1_power_topic) == 0)
     {
-        power = strcmp(text, "ON") == 0;
+        powerLed1 = strcmp(text, "ON") == 0;
     }
-    else if (strcmp(topic, cmnd_color_topic) == 0)
+    else if (strcmp(topic, cmnd_led1_color_topic) == 0)
     {
         StaticJsonBuffer<200> jsonBuffer;
         JsonObject& data = jsonBuffer.parseObject(text);
@@ -676,11 +682,48 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
         }
         else if (data.containsKey("effect"))
         {
-            if (0 != strcmp(effect, data["effect"]))
+            if (0 != strcmp(effectLed1, data["effect"]))
             {
-                strcpy(effect, data["effect"]);
+                strcpy(effectLed1, data["effect"]);
+                Serial.println(effectLed1);
                 // restart hue
                 gHue1 = 0;
+            }
+        }
+
+        if (data.containsKey("state"))
+        {
+            // Set variable power to true or false depending on the state
+            powerLed1 = (data["state"] == "ON");
+        }
+    }
+
+    if (strcmp(topic, cmnd_led2_power_topic) == 0)
+    {
+        powerLed2 = strcmp(text, "ON") == 0;
+    }
+    else if (strcmp(topic, cmnd_led2_color_topic) == 0)
+    {
+        StaticJsonBuffer<200> jsonBuffer;
+        JsonObject& data = jsonBuffer.parseObject(text);
+
+        if (data.containsKey("color"))
+        {
+            const int r = data["color"]["r"];
+            const int g = data["color"]["g"];
+            const int b = data["color"]["b"];
+        }
+        else if (data.containsKey("brightness"))
+        {
+            const int brightness = data["brightness"];
+        }
+        else if (data.containsKey("effect"))
+        {
+            if (0 != strcmp(effectLed2, data["effect"]))
+            {
+                strcpy(effectLed2, data["effect"]);
+                Serial.println(effectLed2);
+                // restart hue
                 gHue2 = 0;
             }
         }
@@ -688,7 +731,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
         if (data.containsKey("state"))
         {
             // Set variable power to true or false depending on the state
-            power = (data["state"] == "ON");
+            powerLed2 = (data["state"] == "ON");
         }
     }
 
@@ -752,8 +795,14 @@ void mqttReconnect()
             Serial.println("connected");
 
             // Subscribe to MQTT topics
-            mqttClient.subscribe(cmnd_power_topic);
-            mqttClient.subscribe(cmnd_color_topic);
+
+            // LED1
+            mqttClient.subscribe(cmnd_led1_power_topic);
+            mqttClient.subscribe(cmnd_led1_color_topic);
+            // LED2
+            mqttClient.subscribe(cmnd_led2_power_topic);
+            mqttClient.subscribe(cmnd_led2_color_topic);
+
             mqttClient.subscribe(line1_topic);
             mqttClient.subscribe(line2_topic);
             mqttClient.subscribe(line3_topic);
@@ -1078,47 +1127,47 @@ void juggle(CRGB *leds, uint8_t gHue) {
   }
 }
 
-void processEffects()
+void processEffects(CRGB *leds, bool power, const char* effect, uint8_t hue)
 {
     if ( (false == power) || (0 == strcmp(effect, "none")) )
     {
       // Make sure all LEDs are turned off
-      fill_solid( leds1, NUM_LEDS, CRGB::Black);
-      fill_solid( leds2, NUM_LEDS, CRGB::Black);
+      fill_solid( leds, NUM_LEDS, CRGB::Black);
       return;
     }
 
     if (0 == strcmp(effect, "rainbow"))
     {
-      rainbow(leds1, gHue1);
-      rainbow(leds2, gHue2);
+      rainbow(leds, hue);
     }
     else if (0 == strcmp(effect, "sinelon"))
     {
-      sinelon(leds1, gHue1);
-      sinelon(leds2, gHue2);
+      sinelon(leds, hue);
     }
     else if (0 == strcmp(effect, "confetti"))
     {
-      confetti(leds1, gHue1);
-      confetti(leds2, gHue2);
+      confetti(leds, hue);
     }
     else if (0 == strcmp(effect, "bpm"))
     {
-      bpm(leds1, gHue1);
-      bpm(leds2, gHue2);
+      bpm(leds, hue);
     }
     else if (0 == strcmp(effect, "juggle"))
     {
-      juggle(leds1, gHue1);
-      juggle(leds2, gHue2);
+      juggle(leds, hue);
+    }
+    else
+    {
+      // Turn off LEDs if the effect is not supported
+      fill_solid( leds, NUM_LEDS, CRGB::Black);
     }
 }
 
 void loop()
 {
     // Set< animations for each LED strip
-    processEffects();
+    processEffects(leds1, powerLed1, effectLed1, gHue1);
+    processEffects(leds2, powerLed2, effectLed2, gHue2);
 
     FastLED.show();
     FastLED.delay(1000/FRAMES_PER_SECOND);
