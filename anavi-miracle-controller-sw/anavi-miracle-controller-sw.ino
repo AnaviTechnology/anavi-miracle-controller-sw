@@ -70,7 +70,10 @@ CRGB leds2[NUM_LEDS];
 
 // rotating "base color" used by many of the patterns
 uint8_t gHue1 = 0;
-uint8_t gHue2 = 120;
+uint8_t gHue2 = 0;
+
+bool power = true;
+char effect[32] = "rainbow";
 
 U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
 
@@ -135,6 +138,12 @@ char line2_topic[11 + sizeof(machineId)];
 char line3_topic[11 + sizeof(machineId)];
 char cmnd_temp_coefficient_topic[14 + sizeof(machineId)];
 char cmnd_ds_temp_coefficient_topic[20 + sizeof(machineId)];
+
+char cmnd_power_topic[44];
+char cmnd_color_topic[44];
+
+char stat_power_topic[44];
+char stat_color_topic[44];
 
 // The display can fit 26 "i":s on a single line.  It will fit even
 // less of other characters.
@@ -219,6 +228,12 @@ void setup()
 
     // Machine ID
     calculateMachineId();
+
+    // Set MQTT topics
+    sprintf(cmnd_power_topic, "cmnd/%s/power", machineId);
+    sprintf(cmnd_color_topic, "cmnd/%s/color", machineId);
+    sprintf(stat_power_topic, "stat/%s/power", machineId);
+    sprintf(stat_color_topic, "stat/%s/color", machineId);
 
     //read configuration from FS json
     Serial.println("mounting FS...");
@@ -640,6 +655,43 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
     Serial.print("] ");
     Serial.println(text);
 
+    if (strcmp(topic, cmnd_power_topic) == 0)
+    {
+        power = strcmp(text, "ON") == 0;
+    }
+    else if (strcmp(topic, cmnd_color_topic) == 0)
+    {
+        StaticJsonBuffer<200> jsonBuffer;
+        JsonObject& data = jsonBuffer.parseObject(text);
+
+        if (data.containsKey("color"))
+        {
+            const int r = data["color"]["r"];
+            const int g = data["color"]["g"];
+            const int b = data["color"]["b"];
+        }
+        else if (data.containsKey("brightness"))
+        {
+            const int brightness = data["brightness"];
+        }
+        else if (data.containsKey("effect"))
+        {
+            if (0 != strcmp(effect, data["effect"]))
+            {
+                strcpy(effect, data["effect"]);
+                // restart hue
+                gHue1 = 0;
+                gHue2 = 0;
+            }
+        }
+
+        if (data.containsKey("state"))
+        {
+            // Set variable power to true or false depending on the state
+            power = (data["state"] == "ON");
+        }
+    }
+
     if (strcmp(topic, line1_topic) == 0)
     {
         snprintf(mqtt_line1, sizeof(mqtt_line1), "%s", text);
@@ -700,6 +752,8 @@ void mqttReconnect()
             Serial.println("connected");
 
             // Subscribe to MQTT topics
+            mqttClient.subscribe(cmnd_power_topic);
+            mqttClient.subscribe(cmnd_color_topic);
             mqttClient.subscribe(line1_topic);
             mqttClient.subscribe(line2_topic);
             mqttClient.subscribe(line3_topic);
@@ -980,7 +1034,6 @@ void handleSensors()
     }
 }
 
-
 void rainbow(CRGB *leds, uint8_t gHue)
 {
   fill_rainbow(leds, NUM_LEDS, gHue, 7);
@@ -1025,11 +1078,47 @@ void juggle(CRGB *leds, uint8_t gHue) {
   }
 }
 
+void processEffects()
+{
+    if ( (false == power) || (0 == strcmp(effect, "none")) )
+    {
+      // Make sure all LEDs are turned off
+      fill_solid( leds1, NUM_LEDS, CRGB::Black);
+      fill_solid( leds2, NUM_LEDS, CRGB::Black);
+      return;
+    }
+
+    if (0 == strcmp(effect, "rainbow"))
+    {
+      rainbow(leds1, gHue1);
+      rainbow(leds2, gHue2);
+    }
+    else if (0 == strcmp(effect, "sinelon"))
+    {
+      sinelon(leds1, gHue1);
+      sinelon(leds2, gHue2);
+    }
+    else if (0 == strcmp(effect, "confetti"))
+    {
+      confetti(leds1, gHue1);
+      confetti(leds2, gHue2);
+    }
+    else if (0 == strcmp(effect, "bpm"))
+    {
+      bpm(leds1, gHue1);
+      bpm(leds2, gHue2);
+    }
+    else if (0 == strcmp(effect, "juggle"))
+    {
+      juggle(leds1, gHue1);
+      juggle(leds2, gHue2);
+    }
+}
+
 void loop()
 {
-    // Set different animations for each LED strip
-    rainbow(leds1, gHue1);
-    sinelon(leds2, gHue2);
+    // Set< animations for each LED strip
+    processEffects();
 
     FastLED.show();
     FastLED.delay(1000/FRAMES_PER_SECOND);
