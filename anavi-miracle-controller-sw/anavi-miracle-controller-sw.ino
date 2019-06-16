@@ -662,11 +662,22 @@ void printLedStatus()
     Serial.println(sensor_line2);
 }
 
-void setColors(JsonObject& data, CRGB& color, uint8_t& hue)
+void convertColors(JsonObject& data, CRGB& color, uint8_t& hue)
 {
     const uint8_t r = data["color"]["r"];
     const uint8_t g = data["color"]["g"];
     const uint8_t b = data["color"]["b"];
+    setColors(r, g, b, color, hue);
+}
+
+void convertBrightness(JsonObject& data, CRGB& color, uint8_t& hue)
+{
+    const uint8_t brightness = data["brightness"];
+    setColors(brightness, brightness, brightness, color, hue);
+}
+
+void setColors(uint8_t r, uint8_t g, uint8_t b, CRGB& color, uint8_t& hue)
+{
     color.setRGB(r, g, b);
     // Calculate hue
     CHSV hc = rgb2hsv_approximate(color);
@@ -698,11 +709,11 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
 
         if (data.containsKey("color"))
         {
-            setColors(data, color1, gHue1);
+            convertColors(data, color1, gHue1);
         }
         else if (data.containsKey("brightness"))
         {
-            const int brightness = data["brightness"];
+            convertBrightness(data, color1, gHue1);
         }
 
         if (data.containsKey("effect"))
@@ -736,11 +747,11 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
 
         if (data.containsKey("color"))
         {
-            setColors(data, color2, gHue2);
+            convertColors(data, color2, gHue2);
         }
         else if (data.containsKey("brightness"))
         {
-            const int brightness = data["brightness"];
+            convertBrightness(data, color2, gHue2);
         }
 
         if (data.containsKey("effect"))
