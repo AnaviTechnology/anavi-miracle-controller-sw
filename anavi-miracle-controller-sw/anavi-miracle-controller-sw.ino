@@ -68,6 +68,9 @@
 CRGB leds1[NUM_LEDS];
 CRGB leds2[NUM_LEDS];
 
+CRGB color1 = CRGB::Red;
+CRGB color2 = CRGB::Black;
+
 // rotating "base color" used by many of the patterns
 uint8_t gHue1 = 0;
 uint8_t gHue2 = 0;
@@ -681,15 +684,17 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
 
         if (data.containsKey("color"))
         {
-            const int r = data["color"]["r"];
-            const int g = data["color"]["g"];
-            const int b = data["color"]["b"];
+            const uint8_t r = data["color"]["r"];
+            const uint8_t g = data["color"]["g"];
+            const uint8_t b = data["color"]["b"];
+            color1.setRGB(r, g, b);
         }
         else if (data.containsKey("brightness"))
         {
             const int brightness = data["brightness"];
         }
-        else if (data.containsKey("effect"))
+
+        if (data.containsKey("effect"))
         {
             if (0 != strcmp(effectLed1, data["effect"]))
             {
@@ -720,15 +725,17 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
 
         if (data.containsKey("color"))
         {
-            const int r = data["color"]["r"];
-            const int g = data["color"]["g"];
-            const int b = data["color"]["b"];
+            const uint8_t r = data["color"]["r"];
+            const uint8_t g = data["color"]["g"];
+            const uint8_t b = data["color"]["b"];
+            color2.setRGB(r, g, b);
         }
         else if (data.containsKey("brightness"))
         {
             const int brightness = data["brightness"];
         }
-        else if (data.containsKey("effect"))
+
+        if (data.containsKey("effect"))
         {
             if (0 != strcmp(effectLed2, data["effect"]))
             {
@@ -1152,7 +1159,7 @@ void juggle(CRGB *leds, uint8_t gHue) {
   }
 }
 
-void processEffects(CRGB *leds, bool power, const char* effect, uint8_t hue)
+void processEffects(CRGB *leds, bool power, const char* effect, uint8_t hue, const CRGB& color)
 {
     if ( (false == power) || (0 == strcmp(effect, "none")) )
     {
@@ -1161,7 +1168,11 @@ void processEffects(CRGB *leds, bool power, const char* effect, uint8_t hue)
       return;
     }
 
-    if (0 == strcmp(effect, "rainbow"))
+    if ( 0 == strcmp(effect, "solid"))
+    {
+      fill_solid(leds, NUM_LEDS, color);
+    }
+    else if (0 == strcmp(effect, "rainbow"))
     {
       rainbow(leds, hue);
     }
@@ -1202,8 +1213,8 @@ void loop()
     }
 
     // Set< animations for each LED strip
-    processEffects(leds1, powerLed1, effectLed1, gHue1);
-    processEffects(leds2, powerLed2, effectLed2, gHue2);
+    processEffects(leds1, powerLed1, effectLed1, gHue1, color1);
+    processEffects(leds2, powerLed2, effectLed2, gHue2, color2);
 
     FastLED.show();
     FastLED.delay(1000/FRAMES_PER_SECOND);
