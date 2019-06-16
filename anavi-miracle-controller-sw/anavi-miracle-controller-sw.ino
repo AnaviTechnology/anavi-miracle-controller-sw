@@ -148,6 +148,7 @@ char cmnd_led1_power_topic[49];
 char cmnd_led2_power_topic[49];
 char cmnd_led1_color_topic[49];
 char cmnd_led2_color_topic[49];
+char cmnd_reset_hue_topic[47];
 
 char stat_power_topic[44];
 char stat_color_topic[44];
@@ -240,6 +241,7 @@ void setup()
     sprintf(cmnd_led1_color_topic, "cmnd/%s/led1/color", machineId);
     sprintf(cmnd_led2_power_topic, "cmnd/%s/led2/power", machineId);
     sprintf(cmnd_led2_color_topic, "cmnd/%s/led2/color", machineId);
+    sprintf(cmnd_reset_hue_topic, "cmnd/%s/resethue", machineId);
     sprintf(stat_power_topic, "stat/%s/power", machineId);
     sprintf(stat_color_topic, "stat/%s/color", machineId);
 
@@ -783,6 +785,13 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
         need_redraw = true;
     }
 
+    if (strcmp(topic, cmnd_reset_hue_topic) == 0)
+    {
+        // Reset hue and this was sync colors of both animation
+        gHue1 = 0;
+        gHue2 = 0;
+    }
+
     if (strcmp(topic, line1_topic) == 0)
     {
         snprintf(mqtt_line1, sizeof(mqtt_line1), "%s", text);
@@ -850,6 +859,8 @@ void mqttReconnect()
             // LED2
             mqttClient.subscribe(cmnd_led2_power_topic);
             mqttClient.subscribe(cmnd_led2_color_topic);
+            // Topic to reset hue
+            mqttClient.subscribe(cmnd_reset_hue_topic);
 
             mqttClient.subscribe(line1_topic);
             mqttClient.subscribe(line2_topic);
