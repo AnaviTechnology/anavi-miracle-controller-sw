@@ -217,7 +217,7 @@ void setup()
     pinMode(pinExtra, OUTPUT);
     digitalWrite(pinExtra, LOW);
 
-    drawDisplay("ANAVI", "Miracle Controller", "Loading...");
+    drawDisplay("ANAVI", "Miracle Controller", "Loading...", true);
 
     // Power-up safety delay and a chance for resetting the board
     waitForFactoryReset();
