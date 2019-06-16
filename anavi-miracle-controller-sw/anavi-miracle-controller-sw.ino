@@ -159,7 +159,7 @@ String sensor_line1;
 String sensor_line2;
 String sensor_line3;
 
-bool need_redraw = false;
+bool need_redraw = true;
 
 char stat_temp_coefficient_topic[14 + sizeof(machineId)];
 char stat_ds_temp_coefficient_topic[20 + sizeof(machineId)];
@@ -200,7 +200,6 @@ void setup()
     strcpy(mqtt_line1, "");
     strcpy(mqtt_line2, "");
     strcpy(mqtt_line3, "");
-    need_redraw = true;
     Serial.begin(115200);
     Serial.println();
     u8g2.begin();
@@ -650,6 +649,16 @@ void do_ota_upgrade(char *text)
 }
 #endif
 
+void printLedStatus()
+{
+    sensor_line1 = "1: ";
+    sensor_line1 += effectLed1;
+    Serial.println(sensor_line1);
+    sensor_line2 = "2: ";
+    sensor_line2 += effectLed2;
+    Serial.println(sensor_line2);
+}
+
 void mqttCallback(char* topic, byte* payload, unsigned int length)
 {
     // Convert received bytes to a string
@@ -688,6 +697,8 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
                 Serial.println(effectLed1);
                 // restart hue
                 gHue1 = 0;
+                printLedStatus();
+                need_redraw = true;
             }
         }
 
@@ -725,6 +736,8 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
                 Serial.println(effectLed2);
                 // restart hue
                 gHue2 = 0;
+                printLedStatus();
+                need_redraw = true;
             }
         }
 
@@ -733,6 +746,18 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
             // Set variable power to true or false depending on the state
             powerLed2 = (data["state"] == "ON");
         }
+    }
+
+    if (false == powerLed1)
+    {
+        strcpy(effectLed1, "off");
+        need_redraw = true;
+    }
+
+    if (false == powerLed2)
+    {
+        strcpy(effectLed2, "off");
+        need_redraw = true;
     }
 
     if (strcmp(topic, line1_topic) == 0)
@@ -1165,6 +1190,17 @@ void processEffects(CRGB *leds, bool power, const char* effect, uint8_t hue)
 
 void loop()
 {
+    // put your main code here, to run repeatedly:
+    mqttClient.loop();
+
+    // Reconnect if there is an issue with the MQTT connection
+    const unsigned long mqttConnectionMillis = millis();
+    if ( (false == mqttClient.connected()) && (mqttConnectionInterval <= (mqttConnectionMillis - mqttConnectionPreviousMillis)) )
+    {
+        mqttConnectionPreviousMillis = mqttConnectionMillis;
+        mqttReconnect();
+    }
+
     // Set< animations for each LED strip
     processEffects(leds1, powerLed1, effectLed1, gHue1);
     processEffects(leds2, powerLed2, effectLed2, gHue2);
@@ -1189,17 +1225,6 @@ void loop()
       }
     }
 
-    // put your main code here, to run repeatedly:
-    mqttClient.loop();
-
-    // Reconnect if there is an issue with the MQTT connection
-    const unsigned long mqttConnectionMillis = millis();
-    if ( (false == mqttClient.connected()) && (mqttConnectionInterval <= (mqttConnectionMillis - mqttConnectionPreviousMillis)) )
-    {
-        mqttConnectionPreviousMillis = mqttConnectionMillis;
-        mqttReconnect();
-    }
-
     // Handle gestures at a shorter interval
     if (isSensorAvailable(APDS9960_ADDRESS))
     {
@@ -1212,10 +1237,7 @@ void loop()
         sensorPreviousMillis = currentMillis;
         handleSensors();
 
-        sensor_line1 = "Line 1";
-        Serial.println(sensor_line1);
-        sensor_line2 = "Line 2";
-        Serial.println(sensor_line2);
+        printLedStatus();
 
         long rssiValue = WiFi.RSSI();
         String rssi = String(rssiValue) + " dBm";
@@ -1236,7 +1258,7 @@ void loop()
 #endif
     }
 
-    if (need_redraw)
+    if (true == need_redraw)
     {
         drawDisplay(mqtt_line1[0] ? mqtt_line1 : sensor_line1.c_str(),
                     mqtt_line2[0] ? mqtt_line2 : sensor_line2.c_str(),
