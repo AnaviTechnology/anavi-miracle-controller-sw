@@ -68,7 +68,7 @@
 CRGB leds1[NUM_LEDS];
 CRGB leds2[NUM_LEDS];
 
-CRGB color1 = CRGB::Red;
+CRGB color1 = CRGB::Black;
 CRGB color2 = CRGB::Black;
 
 // rotating "base color" used by many of the patterns
@@ -662,6 +662,17 @@ void printLedStatus()
     Serial.println(sensor_line2);
 }
 
+void setColors(JsonObject& data, CRGB& color, uint8_t& hue)
+{
+    const uint8_t r = data["color"]["r"];
+    const uint8_t g = data["color"]["g"];
+    const uint8_t b = data["color"]["b"];
+    color.setRGB(r, g, b);
+    // Calculate hue
+    CHSV hc = rgb2hsv_approximate(color);
+    hue = hc.hue;
+}
+
 void mqttCallback(char* topic, byte* payload, unsigned int length)
 {
     // Convert received bytes to a string
@@ -682,12 +693,12 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
         StaticJsonBuffer<200> jsonBuffer;
         JsonObject& data = jsonBuffer.parseObject(text);
 
+        // restart hue
+        gHue1 = 0;
+
         if (data.containsKey("color"))
         {
-            const uint8_t r = data["color"]["r"];
-            const uint8_t g = data["color"]["g"];
-            const uint8_t b = data["color"]["b"];
-            color1.setRGB(r, g, b);
+            setColors(data, color1, gHue1);
         }
         else if (data.containsKey("brightness"))
         {
@@ -699,9 +710,6 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
             if (0 != strcmp(effectLed1, data["effect"]))
             {
                 strcpy(effectLed1, data["effect"]);
-                Serial.println(effectLed1);
-                // restart hue
-                gHue1 = 0;
                 printLedStatus();
                 need_redraw = true;
             }
@@ -723,12 +731,12 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
         StaticJsonBuffer<200> jsonBuffer;
         JsonObject& data = jsonBuffer.parseObject(text);
 
+        // restart hue
+        gHue2 = 0;
+
         if (data.containsKey("color"))
         {
-            const uint8_t r = data["color"]["r"];
-            const uint8_t g = data["color"]["g"];
-            const uint8_t b = data["color"]["b"];
-            color2.setRGB(r, g, b);
+            setColors(data, color2, gHue2);
         }
         else if (data.containsKey("brightness"))
         {
@@ -740,9 +748,6 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
             if (0 != strcmp(effectLed2, data["effect"]))
             {
                 strcpy(effectLed2, data["effect"]);
-                Serial.println(effectLed2);
-                // restart hue
-                gHue2 = 0;
                 printLedStatus();
                 need_redraw = true;
             }
