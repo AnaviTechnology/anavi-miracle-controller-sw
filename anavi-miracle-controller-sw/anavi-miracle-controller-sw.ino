@@ -263,11 +263,10 @@ void setup()
                 std::unique_ptr<char[]> buf(new char[size]);
 
                 configFile.readBytes(buf.get(), size);
-                DynamicJsonBuffer jsonBuffer;
-                JsonObject& json = jsonBuffer.parseObject(buf.get());
-                json.printTo(Serial);
-                if (json.success())
+                DynamicJsonDocument json(1024);
+                if (DeserializationError::Ok == deserializeJson(json, buf.get()))
                 {
+                    serializeJson(json, Serial);
                     Serial.println("\nparsed json");
 
                     strcpy(mqtt_server, json["mqtt_server"]);
@@ -277,7 +276,7 @@ void setup()
                     strcpy(password, json["password"]);
 #ifdef HOME_ASSISTANT_DISCOVERY
                     {
-                        const char *s = json.get<const char*>("ha_name");
+                        const char *s = json["ha_name"];
                         if (!s)
                             s = machineId;
                         snprintf(ha_name, sizeof(ha_name), "%s", s);
@@ -285,7 +284,7 @@ void setup()
 #endif
 #ifdef OTA_UPGRADES
                     {
-                        const char *s = json.get<const char*>("ota_server");
+                        const char *s = json["ota_server"];
                         if (!s)
                             s = ""; // The empty string never matches.
                         snprintf(ota_server, sizeof(ota_server), "%s", s);
@@ -407,8 +406,7 @@ void setup()
     if (shouldSaveConfig)
     {
         Serial.println("saving config");
-        DynamicJsonBuffer jsonBuffer;
-        JsonObject& json = jsonBuffer.createObject();
+        DynamicJsonDocument json(1024);
         json["mqtt_server"] = mqtt_server;
         json["mqtt_port"] = mqtt_port;
         json["workgroup"] = workgroup;
@@ -427,8 +425,8 @@ void setup()
             Serial.println("failed to open config file for writing");
         }
 
-        json.printTo(Serial);
-        json.printTo(configFile);
+        serializeJson(json, Serial);
+        serializeJson(json, configFile);
         configFile.close();
         //end save
     }
@@ -580,17 +578,17 @@ void factoryReset()
 #ifdef OTA_UPGRADES
 void do_ota_upgrade(char *text)
 {
-    DynamicJsonBuffer jsonBuffer;
-    JsonObject& json = jsonBuffer.parseObject(text);
-    if (!json.success())
+    DynamicJsonDocument json(1024);
+    auto error = deserializeJson(json, text);
+    if (error)
     {
         Serial.println("No success decoding JSON.\n");
     }
-    else if (!json.get<const char*>("server"))
+    else if (!json["server"])
     {
         Serial.println("JSON is missing server\n");
     }
-    else if (!json.get<const char*>("file"))
+    else if (!json["file"])
     {
         Serial.println("JSON is missing file\n");
     }
@@ -599,7 +597,7 @@ void do_ota_upgrade(char *text)
         int port = 0;
         if (json.containsKey("port"))
         {
-            port = json.get<int>("port");
+            port = json["port"];
             Serial.print("Port configured to ");
             Serial.println(port);
         }
@@ -609,8 +607,8 @@ void do_ota_upgrade(char *text)
             port = 80;
         }
 
-        String server = json.get<const char*>("server");
-        String file = json.get<const char*>("file");
+        String server = json["server"];
+        String file = json["file"];
 
         bool ok = false;
         if (ota_server[0] != '\0' && !strcmp(server.c_str(), ota_server))
@@ -664,7 +662,7 @@ void printLedStatus()
     Serial.println(sensor_line2);
 }
 
-void convertColors(JsonObject& data, CRGB& color, uint8_t& hue)
+void convertColors(StaticJsonDocument<200> data, CRGB& color, uint8_t& hue)
 {
     const uint8_t r = data["color"]["r"];
     const uint8_t g = data["color"]["g"];
@@ -672,7 +670,7 @@ void convertColors(JsonObject& data, CRGB& color, uint8_t& hue)
     setColors(r, g, b, color, hue);
 }
 
-void convertBrightness(JsonObject& data, CRGB& color, uint8_t& hue)
+void convertBrightness(StaticJsonDocument<200> data, CRGB& color, uint8_t& hue)
 {
     const uint8_t brightness = data["brightness"];
     setColors(brightness, brightness, brightness, color, hue);
@@ -703,8 +701,8 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
     }
     else if (strcmp(topic, cmnd_led1_color_topic) == 0)
     {
-        StaticJsonBuffer<200> jsonBuffer;
-        JsonObject& data = jsonBuffer.parseObject(text);
+        StaticJsonDocument<200> data;
+        deserializeJson(data, text);
 
         // restart hue
         gHue1 = 0;
@@ -741,8 +739,8 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
     }
     else if (strcmp(topic, cmnd_led2_color_topic) == 0)
     {
-        StaticJsonBuffer<200> jsonBuffer;
-        JsonObject& data = jsonBuffer.parseObject(text);
+        StaticJsonDocument<200> data;
+        deserializeJson(data, text);
 
         // restart hue
         gHue2 = 0;
@@ -898,8 +896,7 @@ bool publishSensorDiscovery(const char *config_key,
     snprintf(topic, sizeof(topic),
              "homeassistant/sensor/%s/%s/config", machineId, config_key);
 
-    DynamicJsonBuffer jsonBuffer;
-    JsonObject& json = jsonBuffer.createObject();
+    DynamicJsonDocument json(1024);
     json["device_class"] = device_class;
     json["name"] = String(ha_name) + " " + name_suffix;
     json["unique_id"] = String("anavi-") + machineId + "-" + config_key;
@@ -907,30 +904,27 @@ bool publishSensorDiscovery(const char *config_key,
     json["unit_of_measurement"] = unit;
     json["value_template"] = value_template;
 
-    JsonObject& device = jsonBuffer.createObject();
+    json["device"]["identifiers"] = machineId;
+    json["device"]["manufacturer"] = "ANAVI Technology";
+    json["device"]["model"] = "ANAVI Miracle Controller";
+    json["device"]["name"] = ha_name;
+    json["device"]["sw_version"] = ESP.getSketchMD5();
 
-    device["identifiers"] = machineId;
-    device["manufacturer"] = "ANAVI Technology";
-    device["model"] = "ANAVI Miracle Controller";
-    device["name"] = ha_name;
-    device["sw_version"] = ESP.getSketchMD5();
+    JsonArray connections = json["device"].createNestedArray("connections").createNestedArray();
+    connections.add("mac");
+    connections.add(WiFi.macAddress());
 
-    JsonArray& conns = jsonBuffer.createArray();
-    JsonArray& pair = conns.createNestedArray();
-    pair.add("mac");
-    pair.add(WiFi.macAddress());
-    device["connections"] = conns;
+    Serial.print("Home Assistant discovery topic: ");
+    Serial.println(topic);
 
-    json["device"] = device;
-
-    int payload_len = json.measureLength();
+    int payload_len = measureJson(json);
     if (!mqttClient.beginPublish(topic, payload_len, true))
     {
         Serial.println("beginPublish failed!\n");
         return false;
     }
 
-    if (json.printTo(mqttClient) != payload_len)
+    if (serializeJson(json, mqttClient) != payload_len)
     {
         Serial.println("writing payload: wrong size!\n");
         return false;
@@ -967,11 +961,10 @@ void publishState()
 
 void publishSensorData(const char* subTopic, const char* key, const float value)
 {
-    StaticJsonBuffer<100> jsonBuffer;
-    char payload[100];
-    JsonObject& json = jsonBuffer.createObject();
+    StaticJsonDocument<100> json;
     json[key] = value;
-    json.printTo(payload);
+    char payload[100];
+    serializeJson(json, payload);
     char topic[200];
     sprintf(topic,"%s/%s/%s", workgroup, machineId, subTopic);
     mqttClient.publish(topic, payload, true);
@@ -979,11 +972,10 @@ void publishSensorData(const char* subTopic, const char* key, const float value)
 
 void publishSensorData(const char* subTopic, const char* key, const String& value)
 {
-    StaticJsonBuffer<100> jsonBuffer;
-    char payload[100];
-    JsonObject& json = jsonBuffer.createObject();
+    StaticJsonDocument<100> json;
     json[key] = value;
-    json.printTo(payload);
+    char payload[100];
+    serializeJson(json, payload);
     char topic[200];
     sprintf(topic,"%s/%s/%s", workgroup, machineId, subTopic);
     mqttClient.publish(topic, payload, true);
