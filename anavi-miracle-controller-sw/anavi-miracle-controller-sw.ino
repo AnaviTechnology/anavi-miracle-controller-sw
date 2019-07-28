@@ -92,6 +92,7 @@ Adafruit_APDS9960 apds;
 const int sensorHTU21D =  0x40;
 const int sensorBH1750 = 0x23;
 const int sensorBMP180 = 0x77;
+const int i2cDisplayAddress = 0x3c;
 
 // Configure pins
 const int pinAlarm = 16;
@@ -198,6 +199,20 @@ void drawDisplay(const char *line1, const char *line2 = "", const char *line3 = 
     u8g2.sendBuffer();
 }
 
+void checkDisplay()
+{
+    Serial.print("Mini I2C OLED Display at address ");
+    Serial.print(i2cDisplayAddress, HEX);
+    if (isSensorAvailable(i2cDisplayAddress))
+    {
+        Serial.println(": OK");
+    }
+    else
+    {
+        Serial.println(": N/A");
+    }
+}
+
 void setup()
 {
     // put your setup code here, to run once:
@@ -206,6 +221,10 @@ void setup()
     strcpy(mqtt_line3, "");
     Serial.begin(115200);
     Serial.println();
+
+    Wire.begin();
+    checkDisplay();
+
     u8g2.begin();
 
     delay(10);
