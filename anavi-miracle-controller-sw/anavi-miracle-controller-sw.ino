@@ -182,16 +182,17 @@ void drawDisplay(const char *line1, const char *line2 = "", const char *line3 = 
     // Clear the internal memory
     u8g2.clearBuffer();
     // Set appropriate font
-    u8g2.setFont(u8g2_font_ncenR14_tr);
-    u8g2.drawStr(0,14, line1);
     if ( true == smallSize)
     {
       u8g2.setFont(u8g2_font_ncenR10_tr);
+      u8g2.drawStr(0,14, line1);
       u8g2.drawStr(0,39, line2);
       u8g2.drawStr(0,60, line3);
     }
     else
     {
+      u8g2.setFont(u8g2_font_ncenR14_tr);
+      u8g2.drawStr(0,14, line1);
       u8g2.drawStr(0,39, line2);
       u8g2.drawStr(0,64, line3);
     }
@@ -211,6 +212,18 @@ void checkDisplay()
     {
         Serial.println(": N/A");
     }
+}
+
+void apWiFiCallback(WiFiManager *myWiFiManager)
+{
+    String configPortalSSID = myWiFiManager->getConfigPortalSSID();
+    // Print information in the serial output
+    Serial.print("Created access point for configuration: ");
+    Serial.println(configPortalSSID);
+    // Show information on the display
+    String apId = configPortalSSID.substring(configPortalSSID.length()-5);
+    String configHelper("AP ID: "+apId);
+    drawDisplay("Miracle Controller", "Please configure", configHelper.c_str(), true);
 }
 
 void setup()
@@ -391,10 +404,14 @@ void setup()
     drawDisplay("Connecting...", WiFi.SSID().c_str());
 
     //fetches ssid and pass and tries to connect
-    //if it does not connect it starts an access point with the specified name
-    //here  "AutoConnectAP"
+    //if it does not connect it starts an access point
     //and goes into a blocking loop awaiting configuration
-    if (!wifiManager.autoConnect("ANAVI Miracle Controller", ""))
+    wifiManager.setAPCallback(apWiFiCallback);
+    // Append the last 5 character of the machine id to the access point name
+    String apId(machineId);
+    apId = apId.substring(apId.length() - 5);
+    String accessPointName = "ANAVI Miracle Controller " + apId;
+    if (!wifiManager.autoConnect(accessPointName.c_str(), ""))
     {
         digitalWrite(pinAlarm, LOW);
         Serial.println("failed to connect and hit timeout");
