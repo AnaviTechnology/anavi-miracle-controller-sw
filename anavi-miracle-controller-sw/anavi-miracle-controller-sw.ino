@@ -144,7 +144,6 @@ char line1_topic[11 + sizeof(machineId)];
 char line2_topic[11 + sizeof(machineId)];
 char line3_topic[11 + sizeof(machineId)];
 char cmnd_temp_coefficient_topic[14 + sizeof(machineId)];
-char cmnd_ds_temp_coefficient_topic[20 + sizeof(machineId)];
 
 char cmnd_led1_power_topic[49];
 char cmnd_led2_power_topic[49];
@@ -170,7 +169,6 @@ String sensor_line3;
 bool need_redraw = true;
 
 char stat_temp_coefficient_topic[14 + sizeof(machineId)];
-char stat_ds_temp_coefficient_topic[20 + sizeof(machineId)];
 
 //callback notifying us of the need to save config
 void saveConfigCallback ()
@@ -348,8 +346,6 @@ void setup()
     sprintf(line3_topic, "cmnd/%s/line3", machineId);
     sprintf(cmnd_temp_coefficient_topic, "cmnd/%s/tempcoef", machineId);
     sprintf(stat_temp_coefficient_topic, "stat/%s/tempcoef", machineId);
-    sprintf(cmnd_ds_temp_coefficient_topic, "cmnd/%s/water/tempcoef", machineId);
-    sprintf(stat_ds_temp_coefficient_topic, "stat/%s/water/tempcoef", machineId);
 #ifdef OTA_UPGRADES
     sprintf(cmnd_update_topic, "cmnd/%s/update", machineId);
 #endif
@@ -934,14 +930,14 @@ void mqttReconnect()
             // Topic to reset hue
             mqttClient.subscribe(cmnd_reset_hue_topic);
 
-            /*mqttClient.subscribe(line1_topic);
+            mqttClient.subscribe(line1_topic);
             mqttClient.subscribe(line2_topic);
             mqttClient.subscribe(line3_topic);
             mqttClient.subscribe(cmnd_temp_coefficient_topic);
-            mqttClient.subscribe(cmnd_ds_temp_coefficient_topic);*/
 #ifdef OTA_UPGRADES
-            //mqttClient.subscribe(cmnd_update_topic);
+            mqttClient.subscribe(cmnd_update_topic);
 #endif
+            // Publish initial status of both LED strips
             publishState(1);
             publishState(2);
             break;
