@@ -942,7 +942,8 @@ void mqttReconnect()
 #ifdef OTA_UPGRADES
             //mqttClient.subscribe(cmnd_update_topic);
 #endif
-            //publishState(false);
+            publishState(1);
+            publishState(2);
             break;
 
         }
