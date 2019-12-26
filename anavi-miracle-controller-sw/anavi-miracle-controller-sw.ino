@@ -7,7 +7,7 @@
 //
 // This requires PubSubClient 2.7.
 
-//#define HOME_ASSISTANT_DISCOVERY 1
+#define HOME_ASSISTANT_DISCOVERY 1
 
 // If PUBLISH_CHIP_ID is defined, the Anavi Miracle Controller will publish
 // the chip ID using MQTT.  This can be considered a privacy issue,
@@ -359,7 +359,7 @@ void setup()
     WiFiManagerParameter custom_mqtt_user("user", "MQTT username", username, sizeof(username));
     WiFiManagerParameter custom_mqtt_pass("pass", "MQTT password", password, sizeof(password));
 #ifdef HOME_ASSISTANT_DISCOVERY
-    WiFiManagerParameter custom_mqtt_ha_name("ha_name", "Sensor name for Home Assistant", ha_name, sizeof(ha_name));
+    WiFiManagerParameter custom_mqtt_ha_name("ha_name", "Device name for Home Assistant", ha_name, sizeof(ha_name));
 #endif
 #ifdef OTA_UPGRADES
     WiFiManagerParameter custom_ota_server("ota_server", "OTA server", ota_server, sizeof(ota_server));
@@ -937,6 +937,12 @@ void mqttReconnect()
 #ifdef OTA_UPGRADES
             mqttClient.subscribe(cmnd_update_topic);
 #endif
+
+#ifdef HOME_ASSISTANT_DISCOVERY
+            // Publish discovery messages
+            publishDiscoveryState();
+#endif
+
             // Publish initial status of both LED strips
             publishState(1);
             publishState(2);
@@ -955,6 +961,7 @@ void mqttReconnect()
 }
 
 #ifdef HOME_ASSISTANT_DISCOVERY
+
 bool publishSensorDiscovery(const char *config_key,
                             const char *device_class,
                             const char *name_suffix,
@@ -1009,6 +1016,104 @@ bool publishSensorDiscovery(const char *config_key,
 
     return true;
 }
+
+bool publishLightDiscovery(int ledId)
+{
+    DynamicJsonDocument json(1024);
+
+    static char topic[48 + sizeof(machineId)];
+    snprintf(topic, sizeof(topic),
+             "homeassistant/light/%s/led%d/config",  machineId, ledId);
+
+    json["schema"] = "json";
+    json["brightness"] = true;
+    json["rgb"] = true;
+    json["effect"] = true;
+    JsonArray effects = json.createNestedArray("effect_list");
+    effects.add("solid");
+    effects.add("rainbow");
+    effects.add("sinelon");
+    effects.add("confetti");
+    effects.add("bpm");
+    effects.add("juggle");
+
+    String deviceSuffix = machineId + String("-led") + String(ledId);
+
+    json["name"] = String(ha_name) + String(" ANAVI Light Controller");
+    json["unique_id"] = String("anavi-") + deviceSuffix;
+    json["command_topic"] = String("cmnd/") + machineId + String("/led") + String(ledId) + String("/color");
+    json["state_topic"] = String("stat/") + machineId + String("/led") + String(ledId) + String("/#");
+
+    json["device"]["identifiers"] = deviceSuffix;
+    json["device"]["manufacturer"] = "ANAVI Technology";
+    json["device"]["model"] = "ANAVI Light Controller";
+    json["device"]["name"] = ha_name;
+    json["device"]["sw_version"] = ESP.getSketchMD5();
+
+    JsonArray connections = json["device"].createNestedArray("connections").createNestedArray();
+    connections.add("mac");
+    connections.add(WiFi.macAddress());
+
+    Serial.print("Home Assistant discovery topic: ");
+    Serial.println(topic);
+
+    int payload_len = measureJson(json);
+    if (!mqttClient.beginPublish(topic, payload_len, true))
+    {
+        Serial.println("beginPublish failed!\n");
+        return false;
+    }
+
+    if (serializeJson(json, mqttClient) != payload_len)
+    {
+        Serial.println("writing payload: wrong size!\n");
+        return false;
+    }
+
+    if (!mqttClient.endPublish())
+    {
+        Serial.println("endPublish failed!\n");
+        return false;
+    }
+
+    return true;
+}
+
+void publishDiscoveryState()
+{
+    publishLightDiscovery(1);
+    publishLightDiscovery(2);
+
+    String homeAssistantTempScale = "°C";
+
+    if (isSensorAvailable(sensorHTU21D))
+    {
+        publishSensorDiscovery("temp",
+                               "temperature",
+                               "Temperature",
+                               "temperature",
+                               homeAssistantTempScale.c_str(),
+                               "{{ value_json.temperature | round(1) }}");
+
+        publishSensorDiscovery("humidity",
+                               "humidity",
+                               "Humidity",
+                               "humidity",
+                               "%",
+                               "{{ value_json.humidity | round(0) }}");
+    }
+
+    if (isSensorAvailable(sensorBH1750))
+    {
+        publishSensorDiscovery("light",
+                       "illuminance",
+                       "Light",
+                       "light",
+                       "Lux",
+                       "{{ value_json.light }}");
+    }
+}
+
 #endif
 
 void publishState(int ledId)
@@ -1068,22 +1173,6 @@ void publishState(int ledId)
     Serial.print("] ");
     Serial.println(state);
     mqttClient.publish(topicPower, state, true);
-
-#ifdef HOME_ASSISTANT_DISCOVERY
-    publishSensorDiscovery("temp",
-                           "temperature",
-                           "Temp",
-                           "/air/temperature",
-                           "°C",
-                           "{{ value_json.temperature }}");
-
-    publishSensorDiscovery("humidity",
-                           "humidity",
-                           "Humidity",
-                           "/air/humidity",
-                           "%",
-                           "{{ value_json.humidity }}");
-#endif
 }
 
 void publishSensorData(const char* subTopic, const char* key, const float value)
