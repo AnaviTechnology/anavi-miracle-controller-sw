@@ -932,7 +932,7 @@ void mqttReconnect()
             mqttClient.subscribe(cmnd_led2_power_topic);
             mqttClient.subscribe(cmnd_led2_color_topic);
             // Topic to reset hue
-            //mqttClient.subscribe(cmnd_reset_hue_topic);
+            mqttClient.subscribe(cmnd_reset_hue_topic);
 
             /*mqttClient.subscribe(line1_topic);
             mqttClient.subscribe(line2_topic);
