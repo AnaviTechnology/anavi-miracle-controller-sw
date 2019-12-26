@@ -7,7 +7,7 @@
 //
 // This requires PubSubClient 2.7.
 
-#define HOME_ASSISTANT_DISCOVERY 1
+//#define HOME_ASSISTANT_DISCOVERY 1
 
 // If PUBLISH_CHIP_ID is defined, the Anavi Miracle Controller will publish
 // the chip ID using MQTT.  This can be considered a privacy issue,
@@ -70,6 +70,7 @@ CRGB leds2[NUM_LEDS];
 
 CRGB color1 = CRGB::Black;
 CRGB color2 = CRGB::Black;
+int brightnessLevel = 255;
 
 // rotating "base color" used by many of the patterns
 uint8_t gHue1 = 0;
@@ -151,8 +152,10 @@ char cmnd_led1_color_topic[49];
 char cmnd_led2_color_topic[49];
 char cmnd_reset_hue_topic[47];
 
-char stat_power_topic[44];
-char stat_color_topic[44];
+char stat_led1_power_topic[50];
+char stat_led2_power_topic[50];
+char stat_led1_color_topic[50];
+char stat_led2_color_topic[50];
 
 // The display can fit 26 "i":s on a single line.  It will fit even
 // less of other characters.
@@ -274,8 +277,11 @@ void setup()
     sprintf(cmnd_led2_power_topic, "cmnd/%s/led2/power", machineId);
     sprintf(cmnd_led2_color_topic, "cmnd/%s/led2/color", machineId);
     sprintf(cmnd_reset_hue_topic, "cmnd/%s/resethue", machineId);
-    sprintf(stat_power_topic, "stat/%s/power", machineId);
-    sprintf(stat_color_topic, "stat/%s/color", machineId);
+
+    sprintf(stat_led1_power_topic, "stat/%s/led1/power", machineId);
+    sprintf(stat_led2_power_topic, "stat/%s/led2/power", machineId);
+    sprintf(stat_led1_color_topic, "stat/%s/led1/color", machineId);
+    sprintf(stat_led2_color_topic, "stat/%s/led2/color", machineId);
 
     //read configuration from FS json
     Serial.println("mounting FS...");
@@ -734,6 +740,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
     if (strcmp(topic, cmnd_led1_power_topic) == 0)
     {
         powerLed1 = strcmp(text, "ON") == 0;
+        publishState(powerLed1);
     }
     else if (strcmp(topic, cmnd_led1_color_topic) == 0)
     {
@@ -742,6 +749,25 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
 
         // restart hue
         gHue1 = 0;
+
+        // LED1
+
+        if (data.containsKey("state"))
+        {
+            // Set variable power to true or false depending on the state
+            powerLed1 = (data["state"] == "ON");
+            // Set some default values
+            color1 = CRGB::Red;
+            gHue1 = 0;
+            if (true == powerLed1)
+            {
+              strcpy(effectLed1, "solid");
+            }
+            else
+            {
+              strcpy(effectLed1, "none");
+            }
+        }
 
         if (data.containsKey("color"))
         {
@@ -758,28 +784,45 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
             {
                 strcpy(effectLed1, data["effect"]);
                 printLedStatus();
-                need_redraw = true;
             }
         }
+        // Update the content on the display
+        need_redraw = true;
 
-        if (data.containsKey("state"))
-        {
-            // Set variable power to true or false depending on the state
-            powerLed1 = (data["state"] == "ON");
-        }
+        publishState(powerLed1);
     }
+
+    // LED2
 
     if (strcmp(topic, cmnd_led2_power_topic) == 0)
     {
         powerLed2 = strcmp(text, "ON") == 0;
+        publishState(powerLed2);
     }
-    else if (strcmp(topic, cmnd_led2_color_topic) == 0)
+    else if (strcmp(topic, cmnd_led1_color_topic) == 0)
     {
         StaticJsonDocument<200> data;
         deserializeJson(data, text);
 
         // restart hue
         gHue2 = 0;
+
+        if (data.containsKey("state"))
+        {
+            // Set variable power to true or false depending on the state
+            powerLed2 = (data["state"] == "ON");
+            // Set some default values
+            color2 = CRGB::Red;
+            gHue2 = 0;
+            if (true == powerLed2)
+            {
+              strcpy(effectLed2, "solid");
+            }
+            else
+            {
+              strcpy(effectLed2, "none");
+            }
+        }
 
         if (data.containsKey("color"))
         {
@@ -796,15 +839,12 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
             {
                 strcpy(effectLed2, data["effect"]);
                 printLedStatus();
-                need_redraw = true;
             }
         }
+        // Update the content on the display
+        need_redraw = true;
 
-        if (data.containsKey("state"))
-        {
-            // Set variable power to true or false depending on the state
-            powerLed2 = (data["state"] == "ON");
-        }
+        publishState(powerLed2);
     }
 
     if (false == powerLed1)
@@ -856,8 +896,6 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
         return;
     }
 #endif
-
-    publishState();
 }
 
 void calculateMachineId()
@@ -891,20 +929,20 @@ void mqttReconnect()
             mqttClient.subscribe(cmnd_led1_power_topic);
             mqttClient.subscribe(cmnd_led1_color_topic);
             // LED2
-            mqttClient.subscribe(cmnd_led2_power_topic);
-            mqttClient.subscribe(cmnd_led2_color_topic);
+            //mqttClient.subscribe(cmnd_led2_power_topic);
+            //mqttClient.subscribe(cmnd_led2_color_topic);
             // Topic to reset hue
-            mqttClient.subscribe(cmnd_reset_hue_topic);
+            //mqttClient.subscribe(cmnd_reset_hue_topic);
 
-            mqttClient.subscribe(line1_topic);
+            /*mqttClient.subscribe(line1_topic);
             mqttClient.subscribe(line2_topic);
             mqttClient.subscribe(line3_topic);
             mqttClient.subscribe(cmnd_temp_coefficient_topic);
-            mqttClient.subscribe(cmnd_ds_temp_coefficient_topic);
+            mqttClient.subscribe(cmnd_ds_temp_coefficient_topic);*/
 #ifdef OTA_UPGRADES
-            mqttClient.subscribe(cmnd_update_topic);
+            //mqttClient.subscribe(cmnd_update_topic);
 #endif
-            publishState();
+            //publishState(false);
             break;
 
         }
@@ -976,8 +1014,42 @@ bool publishSensorDiscovery(const char *config_key,
 }
 #endif
 
-void publishState()
+void publishState(bool power)
 {
+    DynamicJsonDocument json(1024);
+    const char* state = power ? "ON" : "OFF";
+    json["state"] = state;
+    json["brightness"] = brightnessLevel;
+    json["effect"] = effectLed1;
+
+    CRGB color = color1;
+    json["color"]["r"] = power ? color.red : 0;
+    json["color"]["g"] = power ? color.green : 0;
+    json["color"]["b"] = power ? color.blue : 0;
+
+    int payloadLength = measureJson(json);
+    if (mqttClient.beginPublish(stat_led1_color_topic, payloadLength, true))
+    {
+        if (serializeJson(json, mqttClient) == payloadLength)
+        {
+            mqttClient.endPublish();
+        }
+    }
+
+    char payload[150];
+    serializeJson(json, payload);
+
+    Serial.print("[");
+    Serial.print(stat_led1_color_topic);
+    Serial.print("] ");
+    Serial.println(payload);
+
+    Serial.print("[");
+    Serial.print(stat_led1_power_topic);
+    Serial.print("] ");
+    Serial.println(state);
+    mqttClient.publish(stat_led1_power_topic, state, true);
+
 #ifdef HOME_ASSISTANT_DISCOVERY
     publishSensorDiscovery("temp",
                            "temperature",
