@@ -59,14 +59,16 @@
 
 #define LED_PIN1    12
 #define LED_PIN2    14
-#define NUM_LEDS    15
 #define BRIGHTNESS  64
 #define LED_TYPE    WS2812
 #define COLOR_ORDER GRB
 #define FRAMES_PER_SECOND  120
 
-CRGB leds1[NUM_LEDS];
-CRGB leds2[NUM_LEDS];
+int numberLed1 = 10;
+int numberLed2 = 10;
+
+CRGB* leds1;
+CRGB* leds2;
 
 CRGB color1 = CRGB::Black;
 CRGB color2 = CRGB::Black;
@@ -256,16 +258,6 @@ void setup()
     // Power-up safety delay and a chance for resetting the board
     waitForFactoryReset();
 
-    FastLED.addLeds<LED_TYPE, LED_PIN1, COLOR_ORDER>(leds1, NUM_LEDS).setCorrection( TypicalLEDStrip );
-    FastLED.addLeds<LED_TYPE, LED_PIN2, COLOR_ORDER>(leds2, NUM_LEDS).setCorrection( TypicalLEDStrip );
-    FastLED.setBrightness(  BRIGHTNESS );
-    // Turn on lights
-    rainbow(leds1, gHue1);
-    rainbow(leds2, gHue2);
-    FastLED.show();
-    delay(100);
-    Serial.println("LED strips have been initialized!");
-
     // Machine ID
     calculateMachineId();
 
@@ -339,6 +331,21 @@ void setup()
         Serial.println("failed to mount FS");
     }
     //end read
+
+    // Dynamically assign number of LEDs in both strips
+    // This object will be used during the whole tile while the Arduino sketch
+    // is running therefore delete is not invoked
+    leds1 = new CRGB[numberLed1];
+    leds2 = new CRGB[numberLed2];
+    FastLED.addLeds<LED_TYPE, LED_PIN1, COLOR_ORDER>(leds1, numberLed1).setCorrection( TypicalLEDStrip );
+    FastLED.addLeds<LED_TYPE, LED_PIN2, COLOR_ORDER>(leds2, numberLed2).setCorrection( TypicalLEDStrip );
+    FastLED.setBrightness(  BRIGHTNESS );
+    // Turn on lights
+    rainbow(leds1, gHue1, numberLed1);
+    rainbow(leds2, gHue2, numberLed2);
+    FastLED.show();
+    delay(100);
+    Serial.println("LED strips have been initialized!");
 
     // Set MQTT topics
     sprintf(line1_topic, "cmnd/%s/line1", machineId);
@@ -1350,87 +1357,88 @@ void handleSensors()
     }
 }
 
-void rainbow(CRGB *leds, uint8_t gHue)
+void rainbow(CRGB *leds, uint8_t gHue, int numToFill)
 {
-  fill_rainbow(leds, NUM_LEDS, gHue, 7);
+  fill_rainbow(leds, numToFill, gHue, 7);
 }
 
-void sinelon(CRGB *leds, uint8_t gHue)
+void sinelon(CRGB *leds, uint8_t gHue, int numToFill)
 {
   // a colored dot sweeping back and forth, with fading trails
-  fadeToBlackBy( leds, NUM_LEDS, 20);
-  int pos = beatsin16( 13, 0, NUM_LEDS-1 );
+  fadeToBlackBy( leds, numToFill, 20);
+  int pos = beatsin16( 13, 0, numToFill-1 );
   leds[pos] += CHSV( gHue, 255, 192);
 }
 
-void confetti(CRGB *leds, uint8_t gHue) 
+void confetti(CRGB *leds, uint8_t gHue, int numToFill)
 {
   // random colored speckles that blink in and fade smoothly
-  fadeToBlackBy( leds, NUM_LEDS, 10);
-  int pos = random16(NUM_LEDS);
+  fadeToBlackBy( leds, numToFill, 10);
+  int pos = random16(numToFill);
   leds[pos] += CHSV( gHue + random8(64), 200, 255);
 }
 
-void bpm(CRGB *leds, uint8_t gHue)
+void bpm(CRGB *leds, uint8_t gHue, int numToFill)
 {
   // colored stripes pulsing at a defined Beats-Per-Minute (BPM)
   uint8_t BeatsPerMinute = 62;
   CRGBPalette16 palette = PartyColors_p;
   uint8_t beat = beatsin8( BeatsPerMinute, 64, 255);
-  for( int i = 0; i < NUM_LEDS; i++) 
+  for( int i = 0; i < numToFill; i++)
   {
     leds[i] = ColorFromPalette(palette, gHue+(i*2), beat-gHue+(i*10));
   }
 }
 
-void juggle(CRGB *leds, uint8_t gHue) {
+void juggle(CRGB *leds, uint8_t gHue, int numToFill)
+{
   // eight colored dots, weaving in and out of sync with each other
-  fadeToBlackBy( leds, NUM_LEDS, 20);
+  fadeToBlackBy( leds, numToFill, 20);
   byte dothue = 0;
   for( int i = 0; i < 8; i++)
   {
-    leds[beatsin16( i+7, 0, NUM_LEDS-1 )] |= CHSV(dothue, 200, 255);
+    leds[beatsin16( i+7, 0, numToFill-1 )] |= CHSV(dothue, 200, 255);
     dothue += 32;
   }
 }
 
-void processEffects(CRGB *leds, bool power, const char* effect, uint8_t hue, const CRGB& color)
+void processEffects(CRGB *leds, bool power, const char* effect, uint8_t hue, const CRGB& color, int numToFill)
 {
     if ( (false == power) || (0 == strcmp(effect, "none")) )
     {
       // Make sure all LEDs are turned off
-      fill_solid( leds, NUM_LEDS, CRGB::Black);
+      fill_solid( leds, numToFill, CRGB::Black);
       return;
     }
 
     if ( 0 == strcmp(effect, "solid"))
     {
-      fill_solid(leds, NUM_LEDS, color);
+      fill_solid(leds, numToFill, color);
     }
     else if (0 == strcmp(effect, "rainbow"))
     {
-      rainbow(leds, hue);
+      rainbow(leds, hue, numToFill);
     }
     else if (0 == strcmp(effect, "sinelon"))
     {
-      sinelon(leds, hue);
+      sinelon(leds, hue, numToFill);
     }
     else if (0 == strcmp(effect, "confetti"))
     {
-      confetti(leds, hue);
+      confetti(leds, hue, numToFill);
     }
     else if (0 == strcmp(effect, "bpm"))
     {
-      bpm(leds, hue);
+      bpm(leds, hue, numToFill);
     }
     else if (0 == strcmp(effect, "juggle"))
     {
-      juggle(leds, hue);
+      juggle(leds, hue, numToFill);
     }
     else
     {
       // Turn off LEDs if the effect is not supported
-      fill_solid( leds, NUM_LEDS, CRGB::Black);
+      fill_solid( leds, numToFill, CRGB::Black);
     }
 }
 
@@ -1448,8 +1456,8 @@ void loop()
     }
 
     // Set< animations for each LED strip
-    processEffects(leds1, powerLed1, effectLed1, gHue1, color1);
-    processEffects(leds2, powerLed2, effectLed2, gHue2, color2);
+    processEffects(leds1, powerLed1, effectLed1, gHue1, color1, numberLed1);
+    processEffects(leds2, powerLed2, effectLed2, gHue2, color2, numberLed2);
 
     FastLED.show();
     FastLED.delay(1000/FRAMES_PER_SECOND);
