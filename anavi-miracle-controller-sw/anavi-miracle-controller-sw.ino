@@ -119,6 +119,9 @@ char workgroup[32] = "workgroup";
 // MQTT username and password
 char username[20] = "";
 char password[20] = "";
+// Configurations for number of LEDs in each strip
+char configLed1[20] = "10";
+char configLed2[20] = "10";
 #ifdef HOME_ASSISTANT_DISCOVERY
 char ha_name[32+1] = "";        // Make sure the machineId fits.
 #endif
@@ -302,6 +305,10 @@ void setup()
                     strcpy(workgroup, json["workgroup"]);
                     strcpy(username, json["username"]);
                     strcpy(password, json["password"]);
+
+                    numberLed1 = json["configLed1"];
+                    numberLed2 = json["configLed2"];
+
 #ifdef HOME_ASSISTANT_DISCOVERY
                     {
                         const char *s = json["ha_name"];
@@ -332,21 +339,6 @@ void setup()
     }
     //end read
 
-    // Dynamically assign number of LEDs in both strips
-    // This object will be used during the whole tile while the Arduino sketch
-    // is running therefore delete is not invoked
-    leds1 = new CRGB[numberLed1];
-    leds2 = new CRGB[numberLed2];
-    FastLED.addLeds<LED_TYPE, LED_PIN1, COLOR_ORDER>(leds1, numberLed1).setCorrection( TypicalLEDStrip );
-    FastLED.addLeds<LED_TYPE, LED_PIN2, COLOR_ORDER>(leds2, numberLed2).setCorrection( TypicalLEDStrip );
-    FastLED.setBrightness(  BRIGHTNESS );
-    // Turn on lights
-    rainbow(leds1, gHue1, numberLed1);
-    rainbow(leds2, gHue2, numberLed2);
-    FastLED.show();
-    delay(100);
-    Serial.println("LED strips have been initialized!");
-
     // Set MQTT topics
     sprintf(line1_topic, "cmnd/%s/line1", machineId);
     sprintf(line2_topic, "cmnd/%s/line2", machineId);
@@ -365,6 +357,8 @@ void setup()
     WiFiManagerParameter custom_workgroup("workgroup", "workgroup", workgroup, sizeof(workgroup));
     WiFiManagerParameter custom_mqtt_user("user", "MQTT username", username, sizeof(username));
     WiFiManagerParameter custom_mqtt_pass("pass", "MQTT password", password, sizeof(password));
+    WiFiManagerParameter custom_led1("led1", "LED1", configLed1, sizeof(configLed1));
+    WiFiManagerParameter custom_led2("led2", "LED2", configLed2, sizeof(configLed2));
 #ifdef HOME_ASSISTANT_DISCOVERY
     WiFiManagerParameter custom_mqtt_ha_name("ha_name", "Device name for Home Assistant", ha_name, sizeof(ha_name));
 #endif
@@ -389,6 +383,8 @@ void setup()
     wifiManager.addParameter(&custom_workgroup);
     wifiManager.addParameter(&custom_mqtt_user);
     wifiManager.addParameter(&custom_mqtt_pass);
+    wifiManager.addParameter(&custom_led1);
+    wifiManager.addParameter(&custom_led2);
 #ifdef HOME_ASSISTANT_DISCOVERY
     wifiManager.addParameter(&custom_mqtt_ha_name);
 #endif
@@ -440,6 +436,17 @@ void setup()
     strcpy(workgroup, custom_workgroup.getValue());
     strcpy(username, custom_mqtt_user.getValue());
     strcpy(password, custom_mqtt_pass.getValue());
+    int saveLed1 = atoi(custom_led1.getValue());
+    if (0 > saveLed1)
+    {
+      saveLed1 = 10;
+    }
+    int saveLed2 = atoi(custom_led2.getValue());
+    if (0 > saveLed2)
+    {
+      saveLed2 = 10;
+    }
+
 #ifdef HOME_ASSISTANT_DISCOVERY
     strcpy(ha_name, custom_mqtt_ha_name.getValue());
 #endif
@@ -457,6 +464,10 @@ void setup()
         json["workgroup"] = workgroup;
         json["username"] = username;
         json["password"] = password;
+        numberLed1 = saveLed1;
+        numberLed2 = saveLed2;
+        json["configLed1"] = numberLed1;
+        json["configLed2"] = numberLed2;
 #ifdef HOME_ASSISTANT_DISCOVERY
         json["ha_name"] = ha_name;
 #endif
@@ -471,10 +482,26 @@ void setup()
         }
 
         serializeJson(json, Serial);
+        Serial.println("");
         serializeJson(json, configFile);
         configFile.close();
         //end save
     }
+
+    // Dynamically assign number of LEDs in both strips
+    // This object will be used during the whole tile while the Arduino sketch
+    // is running therefore delete is not invoked
+    leds1 = new CRGB[numberLed1];
+    leds2 = new CRGB[numberLed2];
+    FastLED.addLeds<LED_TYPE, LED_PIN1, COLOR_ORDER>(leds1, numberLed1).setCorrection( TypicalLEDStrip );
+    FastLED.addLeds<LED_TYPE, LED_PIN2, COLOR_ORDER>(leds2, numberLed2).setCorrection( TypicalLEDStrip );
+    FastLED.setBrightness(  BRIGHTNESS );
+    // Turn on lights
+    rainbow(leds1, gHue1, numberLed1);
+    rainbow(leds2, gHue2, numberLed2);
+    FastLED.show();
+    delay(100);
+    Serial.println("LED strips have been initialized!");
 
     Serial.println("local ip");
     Serial.println(WiFi.localIP());
@@ -1046,14 +1073,14 @@ bool publishLightDiscovery(int ledId)
 
     String deviceSuffix = machineId + String("-led") + String(ledId);
 
-    json["name"] = String(ha_name) + String(" ANAVI Light Controller");
+    json["name"] = String(ha_name) + String(" ANAVI Miracle Controller LED") + String(ledId);
     json["unique_id"] = String("anavi-") + deviceSuffix;
     json["command_topic"] = String("cmnd/") + machineId + String("/led") + String(ledId) + String("/color");
     json["state_topic"] = String("stat/") + machineId + String("/led") + String(ledId) + String("/#");
 
     json["device"]["identifiers"] = deviceSuffix;
     json["device"]["manufacturer"] = "ANAVI Technology";
-    json["device"]["model"] = "ANAVI Light Controller";
+    json["device"]["model"] = "ANAVI Miracle Controller";
     json["device"]["name"] = ha_name;
     json["device"]["sw_version"] = ESP.getSketchMD5();
 
