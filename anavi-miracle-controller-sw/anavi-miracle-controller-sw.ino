@@ -60,6 +60,12 @@
 #define FASTLED_ESP8266_RAW_PIN_ORDER
 #include <FastLED.h>
 
+#define LED_TYPE1    WS2812B
+#define COLOR_ORDER1 GRB
+
+#define LED_TYPE2    WS2812B
+#define COLOR_ORDER2 GRB
+
 #define LED_PIN1    12
 #define LED_PIN2    14
 #define BRIGHTNESS  64
@@ -73,11 +79,13 @@ CRGB* leds2;
 
 CRGB color1 = CRGB::Black;
 CRGB color2 = CRGB::Black;
-int brightnessLevel = 255;
 
 // rotating "base color" used by many of the patterns
 uint8_t gHue1 = 0;
 uint8_t gHue2 = 0;
+
+uint8_t gVal1 = 255;
+uint8_t gVal2 = 255;
 
 bool powerLed1 = true;
 bool powerLed2 = true;
@@ -123,10 +131,6 @@ char password[20] = "";
 // Configurations for number of LEDs in each strip
 char configLed1[20] = "10";
 char configLed2[20] = "10";
-// LED type
-char ledType[20] = "WS2812B";
-// Color order of the LEDs: GRB, RGB
-char ledColorOrder[20] = "GRB";
 #ifdef HOME_ASSISTANT_DISCOVERY
 char ha_name[32+1] = "";        // Make sure the machineId fits.
 #endif
@@ -237,60 +241,6 @@ void apWiFiCallback(WiFiManager *myWiFiManager)
     drawDisplay("Miracle Controller", "Please configure", configHelper.c_str(), true);
 }
 
-void determineLedType()
-{
-    String configuredType(ledType);
-    if (configuredType.equalsIgnoreCase("WS2812"))
-    {
-#define LED_TYPE    WS2812
-        configuredType = "WS2812";
-    }
-    else if (configuredType.equalsIgnoreCase("WS2811"))
-    {
-#define LED_TYPE    WS2811
-        configuredType = "WS2811";
-    }
-    else if (configuredType.equalsIgnoreCase("TM1804"))
-    {
-#define LED_TYPE    TM1804
-        configuredType = "TM1804";
-    }
-    else if (configuredType.equalsIgnoreCase("NEOPIXEL"))
-    {
-#define LED_TYPE    NEOPIXEL
-        configuredType = "NEOPIXEL";
-    }
-    else
-    {
-#define LED_TYPE    WS2812B
-        configuredType = "WS2812B";
-    }
-    Serial.print("LED type: ");
-    Serial.println(configuredType);
-}
-
-void determineLedColorOrder()
-{
-    String configuredColorOrder(ledColorOrder);
-    if (configuredColorOrder.equalsIgnoreCase("RGB"))
-    {
-#define COLOR_ORDER RGB
-        configuredColorOrder = "RGB";
-    }
-    else if (configuredColorOrder.equalsIgnoreCase("BRG"))
-    {
-#define COLOR_ORDER BRG
-        configuredColorOrder = "BRG";
-    }
-    else
-    {
-#define COLOR_ORDER GRB
-        configuredColorOrder = "GRB";
-    }
-    Serial.print("LED color order: ");
-    Serial.println(configuredColorOrder);
-}
-
 void setup()
 {
     // put your setup code here, to run once:
@@ -369,8 +319,6 @@ void setup()
                     strcpy(workgroup, json["workgroup"]);
                     strcpy(username, json["username"]);
                     strcpy(password, json["password"]);
-                    strcpy(ledType, json["led_type"]);
-                    strcpy(ledColorOrder, json["led_color_order"]);
 
                     numberLed1 = json["configLed1"];
                     numberLed2 = json["configLed2"];
@@ -423,8 +371,6 @@ void setup()
     WiFiManagerParameter custom_workgroup("workgroup", "workgroup", workgroup, sizeof(workgroup));
     WiFiManagerParameter custom_mqtt_user("user", "MQTT username", username, sizeof(username));
     WiFiManagerParameter custom_mqtt_pass("pass", "MQTT password", password, sizeof(password));
-    WiFiManagerParameter custom_led_type("ledType", "WS2812B", ledType, sizeof(ledType));
-    WiFiManagerParameter custom_led_color_order("ledColorOrder", "GRB", ledColorOrder, sizeof(ledColorOrder));
     WiFiManagerParameter custom_led1("led1", "LED1", configLed1, sizeof(configLed1));
     WiFiManagerParameter custom_led2("led2", "LED2", configLed2, sizeof(configLed2));
 #ifdef HOME_ASSISTANT_DISCOVERY
@@ -451,8 +397,6 @@ void setup()
     wifiManager.addParameter(&custom_workgroup);
     wifiManager.addParameter(&custom_mqtt_user);
     wifiManager.addParameter(&custom_mqtt_pass);
-    wifiManager.addParameter(&custom_led_type);
-    wifiManager.addParameter(&custom_led_color_order);
     wifiManager.addParameter(&custom_led1);
     wifiManager.addParameter(&custom_led2);
 #ifdef HOME_ASSISTANT_DISCOVERY
@@ -506,8 +450,6 @@ void setup()
     strcpy(workgroup, custom_workgroup.getValue());
     strcpy(username, custom_mqtt_user.getValue());
     strcpy(password, custom_mqtt_pass.getValue());
-    strcpy(ledType, custom_led_type.getValue());
-    strcpy(ledColorOrder, custom_led_color_order.getValue());
     int saveLed1 = atoi(custom_led1.getValue());
     if (0 > saveLed1)
     {
@@ -536,8 +478,6 @@ void setup()
         json["workgroup"] = workgroup;
         json["username"] = username;
         json["password"] = password;
-        json["led_type"] = ledType;
-        json["led_color_order"] = ledColorOrder;
         numberLed1 = saveLed1;
         numberLed2 = saveLed2;
         json["configLed1"] = numberLed1;
@@ -567,16 +507,14 @@ void setup()
     // is running therefore delete is not invoked
     leds1 = new CRGB[numberLed1];
     leds2 = new CRGB[numberLed2];
-    // Determine LED type and color order for both strips based on the saved configuration
-    determineLedType();
-    determineLedColorOrder();
 
-    FastLED.addLeds<LED_TYPE, LED_PIN1, COLOR_ORDER>(leds1, numberLed1).setCorrection( TypicalLEDStrip );
-    FastLED.addLeds<LED_TYPE, LED_PIN2, COLOR_ORDER>(leds2, numberLed2).setCorrection( TypicalLEDStrip );
+    FastLED.addLeds<LED_TYPE1, LED_PIN1, COLOR_ORDER1>(leds1, numberLed1).setCorrection( TypicalLEDStrip );
+    FastLED.addLeds<LED_TYPE2, LED_PIN2, COLOR_ORDER2>(leds2, numberLed2).setCorrection( TypicalLEDStrip );
+
     FastLED.setBrightness(  BRIGHTNESS );
     // Turn on lights
-    rainbow(leds1, gHue1, numberLed1);
-    rainbow(leds2, gHue2, numberLed2);
+    rainbow(leds1, gHue1, gVal1, numberLed1);
+    rainbow(leds2, gHue2, gVal2, numberLed2);
     FastLED.show();
     delay(100);
     Serial.println("LED strips have been initialized!");
@@ -820,10 +758,10 @@ void convertColors(StaticJsonDocument<200> data, CRGB& color, uint8_t& hue)
     setColors(r, g, b, color, hue);
 }
 
-void convertBrightness(StaticJsonDocument<200> data, CRGB& color, uint8_t& hue)
+void convertBrightness(StaticJsonDocument<200> data, uint8_t& val)
 {
     const uint8_t brightness = data["brightness"];
-    setColors(brightness, brightness, brightness, color, hue);
+    val = brightness;
 }
 
 void setColors(uint8_t r, uint8_t g, uint8_t b, CRGB& color, uint8_t& hue)
@@ -864,17 +802,6 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
         {
             // Set variable power to true or false depending on the state
             powerLed1 = (data["state"] == "ON");
-            // Set some default values
-            color1 = CRGB::Red;
-            gHue1 = 0;
-            if (true == powerLed1)
-            {
-              strcpy(effectLed1, "solid");
-            }
-            else
-            {
-              strcpy(effectLed1, "none");
-            }
         }
 
         if (data.containsKey("color"))
@@ -883,7 +810,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
         }
         else if (data.containsKey("brightness"))
         {
-            convertBrightness(data, color1, gHue1);
+            convertBrightness(data, gVal1);
         }
 
         if (data.containsKey("effect"))
@@ -919,17 +846,6 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
         {
             // Set variable power to true or false depending on the state
             powerLed2 = (data["state"] == "ON");
-            // Set some default values
-            color2 = CRGB::Red;
-            gHue2 = 0;
-            if (true == powerLed2)
-            {
-              strcpy(effectLed2, "solid");
-            }
-            else
-            {
-              strcpy(effectLed2, "none");
-            }
         }
 
         if (data.containsKey("color"))
@@ -938,7 +854,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
         }
         else if (data.containsKey("brightness"))
         {
-            convertBrightness(data, color2, gHue2);
+            convertBrightness(data, gVal2);
         }
 
         if (data.containsKey("effect"))
@@ -957,13 +873,11 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
 
     if (false == powerLed1)
     {
-        strcpy(effectLed1, "off");
         need_redraw = true;
     }
 
     if (false == powerLed2)
     {
-        strcpy(effectLed2, "off");
         need_redraw = true;
     }
 
@@ -1237,10 +1151,12 @@ void publishState(int ledId)
     char effectLed[32];
     char topicPower[50];
     char topicColor[50];
+    uint8_t brightness;
     if (1 == ledId)
     {
       power = powerLed1;
       color = color1;
+      brightness = gVal1;
       strcpy(effectLed, effectLed1);
       strcpy(topicPower, stat_led1_power_topic);
       strcpy(topicColor, stat_led1_color_topic);
@@ -1249,6 +1165,7 @@ void publishState(int ledId)
     {
       power = powerLed2;
       color = color2;
+      brightness = gVal2;
       strcpy(effectLed, effectLed2);
       strcpy(topicPower, stat_led2_power_topic);
       strcpy(topicColor, stat_led2_color_topic);
@@ -1256,7 +1173,7 @@ void publishState(int ledId)
 
     const char* state = power ? "ON" : "OFF";
     json["state"] = state;
-    json["brightness"] = brightnessLevel;
+    json["brightness"] = brightness;
     json["effect"] = effectLed;
 
     json["color"]["r"] = power ? color.red : 0;
@@ -1462,28 +1379,35 @@ void handleSensors()
     }
 }
 
-void rainbow(CRGB *leds, uint8_t gHue, int numToFill)
+void rainbow(CRGB *leds, uint8_t gHue, uint8_t gVal, int numToFill)
 {
-  fill_rainbow(leds, numToFill, gHue, 7);
+    CHSV hsv;
+    hsv.hue = gHue;
+    hsv.val = gVal;
+    hsv.sat = 240;
+    for( int i = 0; i < numToFill; i++) {
+        leds[i] = hsv;
+        hsv.hue += 7;
+    }
 }
 
-void sinelon(CRGB *leds, uint8_t gHue, int numToFill)
+void sinelon(CRGB *leds, uint8_t gHue, uint8_t gVal, int numToFill)
 {
   // a colored dot sweeping back and forth, with fading trails
   fadeToBlackBy( leds, numToFill, 20);
   int pos = beatsin16( 13, 0, numToFill-1 );
-  leds[pos] += CHSV( gHue, 255, 192);
+  leds[pos] += CHSV( gHue, 200, gVal);
 }
 
-void confetti(CRGB *leds, uint8_t gHue, int numToFill)
+void confetti(CRGB *leds, uint8_t gHue, uint8_t gVal, int numToFill)
 {
   // random colored speckles that blink in and fade smoothly
   fadeToBlackBy( leds, numToFill, 10);
   int pos = random16(numToFill);
-  leds[pos] += CHSV( gHue + random8(64), 200, 255);
+  leds[pos] += CHSV( gHue + random8(64), 200, gVal);
 }
 
-void bpm(CRGB *leds, uint8_t gHue, int numToFill)
+void bpm(CRGB *leds, uint8_t gHue, uint8_t gVal, int numToFill)
 {
   // colored stripes pulsing at a defined Beats-Per-Minute (BPM)
   uint8_t BeatsPerMinute = 62;
@@ -1491,23 +1415,26 @@ void bpm(CRGB *leds, uint8_t gHue, int numToFill)
   uint8_t beat = beatsin8( BeatsPerMinute, 64, 255);
   for( int i = 0; i < numToFill; i++)
   {
-    leds[i] = ColorFromPalette(palette, gHue+(i*2), beat-gHue+(i*10));
+    CRGB color = ColorFromPalette(palette, gHue+(i*2), beat-gHue+(i*10));
+    leds[i] = CRGB(color.r * gVal / 255,
+                   color.g * gVal / 255,
+                   color.b * gVal / 255);
   }
 }
 
-void juggle(CRGB *leds, uint8_t gHue, int numToFill)
+void juggle(CRGB *leds, uint8_t gHue, uint8_t gVal, int numToFill)
 {
   // eight colored dots, weaving in and out of sync with each other
   fadeToBlackBy( leds, numToFill, 20);
   byte dothue = 0;
   for( int i = 0; i < 8; i++)
   {
-    leds[beatsin16( i+7, 0, numToFill-1 )] |= CHSV(dothue, 200, 255);
+    leds[beatsin16( i+7, 0, numToFill-1 )] |= CHSV(dothue, 200, gVal);
     dothue += 32;
   }
 }
 
-void processEffects(CRGB *leds, bool power, const char* effect, uint8_t hue, const CRGB& color, int numToFill)
+void processEffects(CRGB *leds, bool power, const char* effect, uint8_t hue, uint8_t val, const CRGB& color, int numToFill)
 {
     if ( (false == power) || (0 == strcmp(effect, "none")) )
     {
@@ -1518,27 +1445,29 @@ void processEffects(CRGB *leds, bool power, const char* effect, uint8_t hue, con
 
     if ( 0 == strcmp(effect, "solid"))
     {
-      fill_solid(leds, numToFill, color);
+      fill_solid(leds, numToFill, CRGB(color.r * val / 255,
+                                       color.g * val / 255,
+                                       color.b * val / 255));
     }
     else if (0 == strcmp(effect, "rainbow"))
     {
-      rainbow(leds, hue, numToFill);
+      rainbow(leds, hue, val, numToFill);
     }
     else if (0 == strcmp(effect, "sinelon"))
     {
-      sinelon(leds, hue, numToFill);
+      sinelon(leds, hue, val, numToFill);
     }
     else if (0 == strcmp(effect, "confetti"))
     {
-      confetti(leds, hue, numToFill);
+      confetti(leds, hue, val, numToFill);
     }
     else if (0 == strcmp(effect, "bpm"))
     {
-      bpm(leds, hue, numToFill);
+      bpm(leds, hue, val, numToFill);
     }
     else if (0 == strcmp(effect, "juggle"))
     {
-      juggle(leds, hue, numToFill);
+      juggle(leds, hue, val, numToFill);
     }
     else
     {
@@ -1561,8 +1490,8 @@ void loop()
     }
 
     // Set< animations for each LED strip
-    processEffects(leds1, powerLed1, effectLed1, gHue1, color1, numberLed1);
-    processEffects(leds2, powerLed2, effectLed2, gHue2, color2, numberLed2);
+    processEffects(leds1, powerLed1, effectLed1, gHue1, gVal1, color1, numberLed1);
+    processEffects(leds2, powerLed2, effectLed2, gHue2, gVal2, color2, numberLed2);
 
     FastLED.show();
     FastLED.delay(1000/FRAMES_PER_SECOND);
