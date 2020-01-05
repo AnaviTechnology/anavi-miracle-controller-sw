@@ -60,6 +60,12 @@
 #define FASTLED_ESP8266_RAW_PIN_ORDER
 #include <FastLED.h>
 
+#define LED_TYPE1    WS2812B
+#define COLOR_ORDER1 GRB
+
+#define LED_TYPE2    WS2812B
+#define COLOR_ORDER2 GRB
+
 #define LED_PIN1    12
 #define LED_PIN2    14
 #define BRIGHTNESS  64
@@ -123,10 +129,6 @@ char password[20] = "";
 // Configurations for number of LEDs in each strip
 char configLed1[20] = "10";
 char configLed2[20] = "10";
-// LED type
-char ledType[20] = "WS2812B";
-// Color order of the LEDs: GRB, RGB
-char ledColorOrder[20] = "GRB";
 #ifdef HOME_ASSISTANT_DISCOVERY
 char ha_name[32+1] = "";        // Make sure the machineId fits.
 #endif
@@ -237,60 +239,6 @@ void apWiFiCallback(WiFiManager *myWiFiManager)
     drawDisplay("Miracle Controller", "Please configure", configHelper.c_str(), true);
 }
 
-void determineLedType()
-{
-    String configuredType(ledType);
-    if (configuredType.equalsIgnoreCase("WS2812"))
-    {
-#define LED_TYPE    WS2812
-        configuredType = "WS2812";
-    }
-    else if (configuredType.equalsIgnoreCase("WS2811"))
-    {
-#define LED_TYPE    WS2811
-        configuredType = "WS2811";
-    }
-    else if (configuredType.equalsIgnoreCase("TM1804"))
-    {
-#define LED_TYPE    TM1804
-        configuredType = "TM1804";
-    }
-    else if (configuredType.equalsIgnoreCase("NEOPIXEL"))
-    {
-#define LED_TYPE    NEOPIXEL
-        configuredType = "NEOPIXEL";
-    }
-    else
-    {
-#define LED_TYPE    WS2812B
-        configuredType = "WS2812B";
-    }
-    Serial.print("LED type: ");
-    Serial.println(configuredType);
-}
-
-void determineLedColorOrder()
-{
-    String configuredColorOrder(ledColorOrder);
-    if (configuredColorOrder.equalsIgnoreCase("RGB"))
-    {
-#define COLOR_ORDER RGB
-        configuredColorOrder = "RGB";
-    }
-    else if (configuredColorOrder.equalsIgnoreCase("BRG"))
-    {
-#define COLOR_ORDER BRG
-        configuredColorOrder = "BRG";
-    }
-    else
-    {
-#define COLOR_ORDER GRB
-        configuredColorOrder = "GRB";
-    }
-    Serial.print("LED color order: ");
-    Serial.println(configuredColorOrder);
-}
-
 void setup()
 {
     // put your setup code here, to run once:
@@ -369,8 +317,6 @@ void setup()
                     strcpy(workgroup, json["workgroup"]);
                     strcpy(username, json["username"]);
                     strcpy(password, json["password"]);
-                    strcpy(ledType, json["led_type"]);
-                    strcpy(ledColorOrder, json["led_color_order"]);
 
                     numberLed1 = json["configLed1"];
                     numberLed2 = json["configLed2"];
@@ -423,8 +369,6 @@ void setup()
     WiFiManagerParameter custom_workgroup("workgroup", "workgroup", workgroup, sizeof(workgroup));
     WiFiManagerParameter custom_mqtt_user("user", "MQTT username", username, sizeof(username));
     WiFiManagerParameter custom_mqtt_pass("pass", "MQTT password", password, sizeof(password));
-    WiFiManagerParameter custom_led_type("ledType", "WS2812B", ledType, sizeof(ledType));
-    WiFiManagerParameter custom_led_color_order("ledColorOrder", "GRB", ledColorOrder, sizeof(ledColorOrder));
     WiFiManagerParameter custom_led1("led1", "LED1", configLed1, sizeof(configLed1));
     WiFiManagerParameter custom_led2("led2", "LED2", configLed2, sizeof(configLed2));
 #ifdef HOME_ASSISTANT_DISCOVERY
@@ -451,8 +395,6 @@ void setup()
     wifiManager.addParameter(&custom_workgroup);
     wifiManager.addParameter(&custom_mqtt_user);
     wifiManager.addParameter(&custom_mqtt_pass);
-    wifiManager.addParameter(&custom_led_type);
-    wifiManager.addParameter(&custom_led_color_order);
     wifiManager.addParameter(&custom_led1);
     wifiManager.addParameter(&custom_led2);
 #ifdef HOME_ASSISTANT_DISCOVERY
@@ -506,8 +448,6 @@ void setup()
     strcpy(workgroup, custom_workgroup.getValue());
     strcpy(username, custom_mqtt_user.getValue());
     strcpy(password, custom_mqtt_pass.getValue());
-    strcpy(ledType, custom_led_type.getValue());
-    strcpy(ledColorOrder, custom_led_color_order.getValue());
     int saveLed1 = atoi(custom_led1.getValue());
     if (0 > saveLed1)
     {
@@ -536,8 +476,6 @@ void setup()
         json["workgroup"] = workgroup;
         json["username"] = username;
         json["password"] = password;
-        json["led_type"] = ledType;
-        json["led_color_order"] = ledColorOrder;
         numberLed1 = saveLed1;
         numberLed2 = saveLed2;
         json["configLed1"] = numberLed1;
@@ -567,12 +505,10 @@ void setup()
     // is running therefore delete is not invoked
     leds1 = new CRGB[numberLed1];
     leds2 = new CRGB[numberLed2];
-    // Determine LED type and color order for both strips based on the saved configuration
-    determineLedType();
-    determineLedColorOrder();
 
-    FastLED.addLeds<LED_TYPE, LED_PIN1, COLOR_ORDER>(leds1, numberLed1).setCorrection( TypicalLEDStrip );
-    FastLED.addLeds<LED_TYPE, LED_PIN2, COLOR_ORDER>(leds2, numberLed2).setCorrection( TypicalLEDStrip );
+    FastLED.addLeds<LED_TYPE1, LED_PIN1, COLOR_ORDER1>(leds1, numberLed1).setCorrection( TypicalLEDStrip );
+    FastLED.addLeds<LED_TYPE2, LED_PIN2, COLOR_ORDER2>(leds2, numberLed2).setCorrection( TypicalLEDStrip );
+
     FastLED.setBrightness(  BRIGHTNESS );
     // Turn on lights
     rainbow(leds1, gHue1, numberLed1);
