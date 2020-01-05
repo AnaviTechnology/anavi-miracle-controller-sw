@@ -802,17 +802,6 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
         {
             // Set variable power to true or false depending on the state
             powerLed1 = (data["state"] == "ON");
-            // Set some default values
-            color1 = CRGB::Red;
-            gHue1 = 0;
-            if (true == powerLed1)
-            {
-              strcpy(effectLed1, "solid");
-            }
-            else
-            {
-              strcpy(effectLed1, "none");
-            }
         }
 
         if (data.containsKey("color"))
@@ -857,17 +846,6 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
         {
             // Set variable power to true or false depending on the state
             powerLed2 = (data["state"] == "ON");
-            // Set some default values
-            color2 = CRGB::Red;
-            gHue2 = 0;
-            if (true == powerLed2)
-            {
-              strcpy(effectLed2, "solid");
-            }
-            else
-            {
-              strcpy(effectLed2, "none");
-            }
         }
 
         if (data.containsKey("color"))
@@ -895,13 +873,11 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
 
     if (false == powerLed1)
     {
-        strcpy(effectLed1, "off");
         need_redraw = true;
     }
 
     if (false == powerLed2)
     {
-        strcpy(effectLed2, "off");
         need_redraw = true;
     }
 
