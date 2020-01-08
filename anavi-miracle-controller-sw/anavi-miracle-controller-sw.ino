@@ -144,6 +144,11 @@ char ha_name[32+1] = "";        // Make sure the machineId fits.
 #ifdef OTA_UPGRADES
 char ota_server[40];
 #endif
+char temp_scale[40] = "celsius";
+
+// Set the temperature in Celsius or Fahrenheit
+// true - Celsius, false - Fahrenheit
+bool configTempCelsius = true;
 
 // MD5 of chip ID.  If you only have a handful of miracle-controllers and use
 // your own MQTT broker (instead of iot.eclips.org) you may want to
@@ -165,6 +170,7 @@ char line1_topic[11 + sizeof(machineId)];
 char line2_topic[11 + sizeof(machineId)];
 char line3_topic[11 + sizeof(machineId)];
 char cmnd_temp_coefficient_topic[14 + sizeof(machineId)];
+char cmnd_temp_format[16 + sizeof(machineId)];
 
 char cmnd_led1_power_topic[49];
 char cmnd_led2_power_topic[49];
@@ -295,6 +301,40 @@ void determineLeds()
 #endif
 }
 
+void saveConfig()
+{
+    Serial.println("saving config");
+    DynamicJsonDocument json(1024);
+    json["mqtt_server"] = mqtt_server;
+    json["mqtt_port"] = mqtt_port;
+    json["workgroup"] = workgroup;
+    json["username"] = username;
+    json["password"] = password;
+    json["led_type"] = ledType;
+    json["led_color_order"] = ledColorOrder;
+    json["configLed1"] = numberLed1;
+    json["configLed2"] = numberLed2;
+    json["temp_scale"] = temp_scale;
+#ifdef HOME_ASSISTANT_DISCOVERY
+    json["ha_name"] = ha_name;
+#endif
+#ifdef OTA_UPGRADES
+    json["ota_server"] = ota_server;
+#endif
+
+    File configFile = SPIFFS.open("/config.json", "w");
+    if (!configFile)
+    {
+        Serial.println("failed to open config file for writing");
+    }
+
+    serializeJson(json, Serial);
+    Serial.println("");
+    serializeJson(json, configFile);
+    configFile.close();
+    //end save
+}
+
 void setup()
 {
     // put your setup code here, to run once:
@@ -379,6 +419,8 @@ void setup()
                     numberLed1 = json["configLed1"];
                     numberLed2 = json["configLed2"];
 
+                    strcpy(temp_scale, json["temp_scale"]);
+
 #ifdef HOME_ASSISTANT_DISCOVERY
                     {
                         const char *s = json["ha_name"];
@@ -415,6 +457,7 @@ void setup()
     sprintf(line3_topic, "cmnd/%s/line3", machineId);
     sprintf(cmnd_temp_coefficient_topic, "cmnd/%s/tempcoef", machineId);
     sprintf(stat_temp_coefficient_topic, "stat/%s/tempcoef", machineId);
+    sprintf(cmnd_temp_format, "cmnd/%s/tempformat", machineId);
 #ifdef OTA_UPGRADES
     sprintf(cmnd_update_topic, "cmnd/%s/update", machineId);
 #endif
@@ -437,6 +480,7 @@ void setup()
 #ifdef OTA_UPGRADES
     WiFiManagerParameter custom_ota_server("ota_server", "OTA server", ota_server, sizeof(ota_server));
 #endif
+    WiFiManagerParameter custom_temperature_scale("temp_scale", "Temperature scale", temp_scale, sizeof(temp_scale));
 
     char htmlMachineId[200];
     sprintf(htmlMachineId,"<p style=\"color: red;\">Machine ID:</p><p><b>%s</b></p><p>Copy and save the machine ID because you will need it to control the device.</p>", machineId);
@@ -459,6 +503,7 @@ void setup()
     wifiManager.addParameter(&custom_led_color_order);
     wifiManager.addParameter(&custom_led1);
     wifiManager.addParameter(&custom_led2);
+    wifiManager.addParameter(&custom_temperature_scale);
 #ifdef HOME_ASSISTANT_DISCOVERY
     wifiManager.addParameter(&custom_mqtt_ha_name);
 #endif
@@ -522,7 +567,7 @@ void setup()
     {
       saveLed2 = 10;
     }
-
+    strcpy(temp_scale, custom_temperature_scale.getValue());
 #ifdef HOME_ASSISTANT_DISCOVERY
     strcpy(ha_name, custom_mqtt_ha_name.getValue());
 #endif
@@ -533,37 +578,9 @@ void setup()
     //save the custom parameters to FS
     if (shouldSaveConfig)
     {
-        Serial.println("saving config");
-        DynamicJsonDocument json(1024);
-        json["mqtt_server"] = mqtt_server;
-        json["mqtt_port"] = mqtt_port;
-        json["workgroup"] = workgroup;
-        json["username"] = username;
-        json["password"] = password;
-        json["led_type"] = ledType;
-        json["led_color_order"] = ledColorOrder;
         numberLed1 = saveLed1;
         numberLed2 = saveLed2;
-        json["configLed1"] = numberLed1;
-        json["configLed2"] = numberLed2;
-#ifdef HOME_ASSISTANT_DISCOVERY
-        json["ha_name"] = ha_name;
-#endif
-#ifdef OTA_UPGRADES
-        json["ota_server"] = ota_server;
-#endif
-
-        File configFile = SPIFFS.open("/config.json", "w");
-        if (!configFile)
-        {
-            Serial.println("failed to open config file for writing");
-        }
-
-        serializeJson(json, Serial);
-        Serial.println("");
-        serializeJson(json, configFile);
-        configFile.close();
-        //end save
+        saveConfig();
     }
 
     // Dynamically assign number of LEDs in both strips
@@ -608,8 +625,20 @@ void setup()
     hiddenpass[strlen(password)] = '\0';
     Serial.print("MQTT Password: ");
     Serial.println(hiddenpass);
+        Serial.print("Saved temperature scale: ");
+    Serial.println(temp_scale);
+    configTempCelsius = String(temp_scale).equalsIgnoreCase("celsius");
+    Serial.print("Temperature scale: ");
+    if (true == configTempCelsius)
+    {
+      Serial.println("Celsius");
+    }
+    else
+    {
+      Serial.println("Fahrenheit");
+    }
 #ifdef HOME_ASSISTANT_DISCOVERY
-    Serial.print("Home Assistant sensor name: ");
+    Serial.print("Home Assistant device name: ");
     Serial.println(ha_name);
 #endif
 #ifdef OTA_UPGRADES
@@ -835,6 +864,29 @@ void setColors(uint8_t r, uint8_t g, uint8_t b, CRGB& color, uint8_t& hue)
     hue = hc.hue;
 }
 
+void processMessageScale(const char* text)
+{
+    StaticJsonDocument<200> data;
+    deserializeJson(data, text);
+    // Set temperature to Celsius or Fahrenheit and redraw screen
+    Serial.print("Changing the temperature scale to: ");
+    if (data.containsKey("scale") && (0 == strcmp(data["scale"], "celsius")) )
+    {
+        Serial.println("Celsius");
+        configTempCelsius = true;
+        strcpy(temp_scale, "celsius");
+    }
+    else
+    {
+        Serial.println("Fahrenheit");
+        configTempCelsius = false;
+        strcpy(temp_scale, "fahrenheit");
+    }
+    need_redraw = true;
+    // Save configurations to file
+    saveConfig();
+}
+
 void mqttCallback(char* topic, byte* payload, unsigned int length)
 {
     // Convert received bytes to a string
@@ -969,6 +1021,11 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
         need_redraw = true;
     }
 
+    if (strcmp(topic, cmnd_temp_format) == 0)
+    {
+        processMessageScale(text);
+    }
+
 #ifdef OTA_UPGRADES
     if (strcmp(topic, cmnd_update_topic) == 0)
     {
@@ -1023,6 +1080,7 @@ void mqttReconnect()
             mqttClient.subscribe(line2_topic);
             mqttClient.subscribe(line3_topic);
             mqttClient.subscribe(cmnd_temp_coefficient_topic);
+            mqttClient.subscribe(cmnd_temp_format);
 #ifdef OTA_UPGRADES
             mqttClient.subscribe(cmnd_update_topic);
 #endif
@@ -1289,6 +1347,22 @@ void publishSensorData(const char* subTopic, const char* key, const String& valu
     mqttClient.publish(topic, payload, true);
 }
 
+float convertCelsiusToFahrenheit(float temperature)
+{
+    return (temperature * 9/5 + 32);
+}
+
+float convertTemperature(float temperature)
+{
+    return (true == configTempCelsius) ? temperature : convertCelsiusToFahrenheit(temperature);
+}
+
+String formatTemperature(float temperature)
+{
+    String unit = (true == configTempCelsius) ? "°C" : "°F";
+    return String(convertTemperature(temperature), 1) + unit;
+}
+
 bool isSensorAvailable(int sensorAddress)
 {
     // Check if I2C sensor is present
@@ -1304,12 +1378,10 @@ void handleHTU21D()
     {
         // Print new temprature value
         sensorTemperature = tempTemperature;
-        Serial.print("Temperature: ");
-        Serial.print(sensorTemperature);
-        Serial.println("C");
+        Serial.println("Temperature: " + formatTemperature(sensorTemperature));
 
         // Publish new temperature value through MQTT
-        publishSensorData("temperature", "temperature", sensorTemperature);
+        publishSensorData("temperature", "temperature", convertTemperature(sensorTemperature));
     }
 
     // Check if humidity has changed
@@ -1409,9 +1481,7 @@ void handleBMP()
   Serial.println(" hPa");
   float temperature;
   bmp.getTemperature(&temperature);
-  Serial.print("BMP180 Temperature: ");
-  Serial.print(temperature);
-  Serial.println(" C");
+  Serial.println("BMP180 Temperature: " + formatTemperature(temperature));
   // For accurate results replace SENSORS_PRESSURE_SEALEVELHPA with the current SLP
   float seaLevelPressure = SENSORS_PRESSURE_SEALEVELHPA;
   float altitude;
@@ -1422,7 +1492,7 @@ void handleBMP()
 
   // Publish new pressure values through MQTT
   publishSensorData("BMPpressure", "BMPpressure", event.pressure);
-  publishSensorData("BMPtemperature", "BMPtemperature", temperature);
+  publishSensorData("BMPtemperature", "BMPtemperature", convertTemperature(temperature));
   publishSensorData("BMPaltitude", "BMPaltitude", altitude);
 }
 
