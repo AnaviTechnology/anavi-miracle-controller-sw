@@ -7,6 +7,9 @@
 //
 // This requires PubSubClient 2.7.
 
+// As of the moment we have 12 parameters
+#define WIFI_MANAGER_MAX_PARAMS 12
+
 #define HOME_ASSISTANT_DISCOVERY 1
 
 // If DEBUG is defined additional message will be printed in serial console
