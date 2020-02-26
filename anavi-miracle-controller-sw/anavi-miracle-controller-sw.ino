@@ -813,6 +813,7 @@ void do_ota_upgrade(char *text)
         Serial.print(":");
         Serial.print(port);
         Serial.println(file);
+        drawDisplay("Performing", "OTA upgrade.", "Stand by.");
         ESPhttpUpdate.setLedPin(pinAlarm, HIGH);
         WiFiClient update_client;
         t_httpUpdate_return ret = ESPhttpUpdate.update(update_client,
@@ -829,6 +830,7 @@ void do_ota_upgrade(char *text)
 
         case HTTP_UPDATE_OK:
             Serial.println("HTTP_UPDATE_OK");
+            drawDisplay("OTA OK.", "Rebooting.", "");
             break;
         }
     }
