@@ -928,7 +928,8 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
         {
             convertColors(data, color1, gHue1);
         }
-        else if (data.containsKey("brightness"))
+
+        if (data.containsKey("brightness"))
         {
             convertBrightness(data, gVal1);
         }
@@ -972,7 +973,8 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
         {
             convertColors(data, color2, gHue2);
         }
-        else if (data.containsKey("brightness"))
+
+        if (data.containsKey("brightness"))
         {
             convertBrightness(data, gVal2);
         }
