@@ -1640,18 +1640,11 @@ void loop()
     // do some periodic updates
     EVERY_N_MILLISECONDS(20)
     {
-      // slowly cycle the "base color" through the rainbow
+      // Slowly cycle the "base color" through the rainbow.  As gHue1
+      // and gHue2 are uint8_t, this will automatically wrap around to
+      // 0 efter 255, so they will cover the whole color spectrum.
       gHue1++;
       gHue2++;
-      // Bring back hue in range
-      if (360 <= gHue1)
-      {
-        gHue1 = 0;
-      }
-      if (360 <= gHue1)
-      {
-        gHue2 = 0;
-      }
     }
 
     // Handle gestures at a shorter interval
