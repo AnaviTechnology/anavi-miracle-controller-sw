@@ -1648,7 +1648,7 @@ void loop()
       {
         gHue1 = 0;
       }
-      if (360 <= gHue1)
+      if (360 <= gHue2)
       {
         gHue2 = 0;
       }
