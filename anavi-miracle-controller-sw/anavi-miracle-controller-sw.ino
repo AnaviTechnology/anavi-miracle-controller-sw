@@ -862,6 +862,32 @@ void convertBrightness(StaticJsonDocument<200> data, uint8_t& val)
     val = brightness;
 }
 
+void convertPixels(JsonArray data, CRGB *leds, int numToFill)
+{
+    for (JsonObject pixel : data)
+    {
+        int n = pixel["n"];
+        CRGB color;
+        color.r = pixel["r"];
+        color.g = pixel["g"];
+        color.b = pixel["b"];
+        if (n < numToFill)
+        {
+#if 0
+            Serial.print("Setting pixel ");
+            Serial.print(n);
+            Serial.print(" r:");
+            Serial.print(color.r);
+            Serial.print(" g:");
+            Serial.print(color.g);
+            Serial.print(" b:");
+            Serial.println(color.b);
+#endif
+            leds[n] = color;
+        }
+    }
+}
+
 void setColors(uint8_t r, uint8_t g, uint8_t b, CRGB& color, uint8_t& hue)
 {
     color.setRGB(r, g, b);
@@ -943,6 +969,12 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
                 printLedStatus();
             }
         }
+
+        if (data.containsKey("pixels"))
+        {
+            convertPixels(data["pixels"].as<JsonArray>(), leds1, numberLed1);
+        }
+
         // Update the content on the display
         need_redraw = true;
 
@@ -988,6 +1020,12 @@ void mqttCallback(char* topic, byte* payload, unsigned int length)
                 printLedStatus();
             }
         }
+
+        if (data.containsKey("pixels"))
+        {
+            convertPixels(data["pixels"].as<JsonArray>(), leds2, numberLed2);
+        }
+
         // Update the content on the display
         need_redraw = true;
 
@@ -1191,6 +1229,7 @@ bool publishLightDiscovery(int ledId)
     effects.add("confetti");
     effects.add("bpm");
     effects.add("juggle");
+    effects.add("mqtt");
 
     String deviceSuffix = machineId + String("-led") + String(ledId);
 
@@ -1609,6 +1648,10 @@ void processEffects(CRGB *leds, bool power, const char* effect, uint8_t hue, uin
     else if (0 == strcmp(effect, "juggle"))
     {
       juggle(leds, hue, val, numToFill);
+    }
+    else if (0 == strcmp(effect, "mqtt"))
+    {
+      // Do nothing here.
     }
     else
     {
