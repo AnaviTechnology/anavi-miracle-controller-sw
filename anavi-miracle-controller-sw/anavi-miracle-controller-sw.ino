@@ -1275,8 +1275,15 @@ bool publishLightDiscovery(int ledId)
 
 void publishDiscoveryState()
 {
-    publishLightDiscovery(1);
-    publishLightDiscovery(2);
+    if (0 < numberLed1)
+    {
+        publishLightDiscovery(1);
+    }
+
+    if (0 < numberLed2)
+    {
+        publishLightDiscovery(2);
+    }
 
     String homeAssistantTempScale = "°C";
 
