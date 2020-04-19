@@ -1171,7 +1171,7 @@ bool publishSensorDiscovery(const char *config_key,
     json["device_class"] = device_class;
     json["name"] = String(ha_name) + " " + name_suffix;
     json["unique_id"] = String("anavi-") + machineId + "-" + config_key;
-    json["state_topic"] = String(workgroup) + "/" + machineId + state_topic;
+    json["state_topic"] = String(workgroup) + "/" + machineId + "/" + state_topic;
     json["unit_of_measurement"] = unit;
     json["value_template"] = value_template;
 
