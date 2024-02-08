@@ -1692,7 +1692,7 @@ void loop()
     {
       // Slowly cycle the "base color" through the rainbow.  As gHue1
       // and gHue2 are uint8_t, this will automatically wrap around to
-      // 0 efter 255, so they will cover the whole color spectrum.
+      // 0 after 255, so they will cover the whole color spectrum.
       gHue1++;
       gHue2++;
     }
